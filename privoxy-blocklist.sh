@@ -151,7 +151,7 @@ function main()
 
     # install Privoxy filterfile
     install -o ${PRIVOXY_USER} -g ${PRIVOXY_GROUP} ${VERBOSE} ${filterfile} ${PRIVOXY_DIR}
-    if $(grep $(basename ${filterfile}) ${PRIVOXY_CONF})
+    if [ "$(grep $(basename ${filterfile}) ${PRIVOXY_CONF})" == "" ] 
     then
       debug "\nModifying ${PRIVOXY_CONF} ..." 0
       sed "s/^\(#*\)filterfile user\.filter/filterfile $(basename ${filterfile})\n\1filterfile user.filter/" ${PRIVOXY_CONF} > ${TMPDIR}/config
