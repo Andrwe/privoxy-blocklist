@@ -172,7 +172,7 @@ then
 
 # array of URL for AdblockPlus lists
 #  for more sources just add it within the round brackets
-URLS=(\"https://easylist-downloads.adblockplus.org/easylistgermany.txt\" \"http://adblockplus.mozdev.org/easylist/easylist.txt\")
+URLS=(\"https://easylist-downloads.adblockplus.org/easylistgermany.txt\" \"https://easylist-downloads.adblockplus.org/easylist.txt\")
 
 # config for privoxy initscript providing PRIVOXY_CONF, PRIVOXY_USER and PRIVOXY_GROUP
 INIT_CONF=\"/etc/conf.d/privoxy\"
