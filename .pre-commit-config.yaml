@@ -1,0 +1,36 @@
+---
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.1.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args:
+          - '--allow-multiple-documents'
+      - id: check-json
+      - id: check-added-large-files
+      - id: check-symlinks
+      - id: destroyed-symlinks
+      - id: check-executables-have-shebangs
+      - id: requirements-txt-fixer
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.8.0.3
+    hooks:
+      - id: shellcheck
+  - repo: https://github.com/AleksaC/hadolint-py
+    rev: v2.8.0
+    hooks:
+      - id: hadolint
+        args:
+          - '--ignore'
+          - 'DL3007'
+          - '--ignore'
+          - 'DL3008'
+          - '--ignore'
+          - 'DL3013'
+  - repo: https://github.com/sirosen/check-jsonschema
+    rev: 0.9.1
+    hooks:
+      - id: check-github-workflows
+      - id: check-github-actions
