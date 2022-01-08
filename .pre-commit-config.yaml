@@ -14,6 +14,10 @@ repos:
       - id: destroyed-symlinks
       - id: check-executables-have-shebangs
       - id: requirements-txt-fixer
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.8.0.3
+    hooks:
+      - id: shellcheck
   - repo: https://github.com/AleksaC/hadolint-py
     rev: v2.8.0
     hooks:
@@ -25,10 +29,6 @@ repos:
           - 'DL3008'
           - '--ignore'
           - 'DL3013'
-  - repo: https://github.com/jumanjihouse/pre-commit-hooks
-    rev: 2.1.5
-    hooks:
-      - id: shellcheck
   - repo: https://github.com/sirosen/check-jsonschema
     rev: 0.9.1
     hooks:
