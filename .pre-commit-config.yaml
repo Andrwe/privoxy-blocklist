@@ -30,7 +30,7 @@ repos:
           - '--ignore'
           - 'DL3013'
   - repo: https://github.com/sirosen/check-jsonschema
-    rev: 0.9.1
+    rev: 0.10.0
     hooks:
       - id: check-github-workflows
       - id: check-github-actions
