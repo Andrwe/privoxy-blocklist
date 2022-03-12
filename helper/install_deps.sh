@@ -3,13 +3,13 @@
 set -e
 
 exists() {
-    if command -v "$1" >/dev/null 2>&1; then
+    if command -v "$1" > /dev/null 2>&1; then
         return 0
     fi
     return 1
 }
 
-if exists apk;then
+if exists apk; then
     apk add --no-cache privoxy sed grep bash wget
     exit 0
 fi

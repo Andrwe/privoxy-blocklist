@@ -18,6 +18,10 @@ repos:
     rev: v0.8.0.4
     hooks:
       - id: shellcheck
+  - repo: https://github.com/maxwinterstein/shfmt-py
+    rev: v3.4.3.1
+    hooks:
+      - id: shfmt
   - repo: https://github.com/AleksaC/hadolint-py
     rev: v2.8.0
     hooks:
