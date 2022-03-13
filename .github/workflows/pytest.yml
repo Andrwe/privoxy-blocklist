@@ -1,6 +1,6 @@
 ---
 # yamllint disable rule:line-length
-name: "BuildBinary"
+name: "Test Suite"
 
 "on":
   push:
