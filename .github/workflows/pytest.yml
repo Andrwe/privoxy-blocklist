@@ -1,0 +1,52 @@
+---
+# yamllint disable rule:line-length
+name: "BuildBinary"
+
+"on":
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    name: Pytest
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: prepare environment
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update -qq --yes
+          sudo apt-get install python3-pip --yes
+          sudo sh helper/install_deps.sh
+          pip install -r ./tests/requirements.txt
+          service privoxy stop || true
+
+      - name: run pytest
+        run: pytest -v -s --color yes tests/
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, 'a') }}
+        with:
+          draft: true
+          prerelease: true
+          files: privoxy-blocklist.sh
+          generate_release_notes: true
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        with:
+          draft: ${{ contains(github.ref, 'a') }}
+          prerelease: ${{ contains(github.ref, 'a') || contains(github.ref, 'rc') }}
+          files: privoxy-blocklist.sh
+          generate_release_notes: true

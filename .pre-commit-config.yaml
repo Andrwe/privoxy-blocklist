@@ -33,6 +33,28 @@ repos:
           - 'DL3008'
           - '--ignore'
           - 'DL3013'
+  - repo: https://github.com/psf/black
+    rev: 22.1.0
+    hooks:
+      - id: black
+  - repo: https://github.com/PyCQA/flake8
+    rev: 4.0.1
+    hooks:
+      - id: flake8
+        args:
+          - '--max-line-length'
+          - '99'
+  - repo: https://github.com/PyCQA/prospector
+    rev: 1.7.7
+    hooks:
+      - id: prospector
+        args:
+          - '--profile'
+          - '.ci_config/prospector.yaml'
+        additional_dependencies:
+          - bandit
+          - pytest
+          - pytest-shell-utilities
   - repo: https://github.com/sirosen/check-jsonschema
     rev: 0.14.0
     hooks:

@@ -39,7 +39,7 @@ DEPENDS=('privoxy' 'sed' 'grep' 'bash' 'wget')
 ######################################################################
 
 function usage() {
-    echo "${TMPNAME} is a script to convert AdBlockPlus-lists into Privoxy-lists and install them."
+    echo "${TMPNAME:-this} is a script to convert AdBlockPlus-lists into Privoxy-lists and install them."
     echo " "
     echo "Options:"
     echo "      -h:    Show this help."

@@ -1,0 +1,12 @@
+---
+autodetect: false
+inherits:
+  - default
+
+bandit:
+  run: true
+  options:
+    config: .ci_config/bandit.yml
+  disable:
+    - B404
+    - B603
