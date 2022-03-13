@@ -1,5 +1,4 @@
 ---
 skips:
-  - B404
-  - B603
+  # allow assert as only used in pytest
   - B101

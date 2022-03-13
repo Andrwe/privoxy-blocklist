@@ -8,18 +8,18 @@ import pytest
 import pytestshellutils
 
 
-def test_first_run(shell):
+def test_first_run(shell, privoxy_blocklist):
     """test initial run which should fail"""
     if Path("/etc/conf.d/privoxy-blacklist").exists():
         pytest.skip("first run already happened, skipping")
-    ret = shell.run("/privoxy-blocklist.sh")
+    ret = shell.run("sudo", privoxy_blocklist)
     assert ret.returncode == 1
     assert "Creating default one and exiting" in ret.stdout
 
 
-def test_next_run(shell):
+def test_next_run(shell, privoxy_blocklist):
     """test followup runs"""
-    assert shell.run("/privoxy-blocklist.sh").returncode == 0
+    assert shell.run("sudo", privoxy_blocklist).returncode == 0
     assert (
         shell.run(
             "/usr/sbin/privoxy", "--no-daemon", "--config-test", "/etc/privoxy/config"
