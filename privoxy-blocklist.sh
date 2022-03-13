@@ -4,7 +4,7 @@
 #
 #                  Author: Andrwe Lord Weber
 #                  Mail: lord-weber-andrwe <at> andrwe <dot> org
-#                  Version: 0.3
+#                  Version: 0.4
 #                  URL: http://andrwe.dyndns.org/doku.php/scripting/bash/privoxy-blocklist
 #
 ##################
@@ -27,8 +27,6 @@
 
 set -euo pipefail
 
-# script config-file
-SCRIPTCONF=/etc/conf.d/privoxy-blacklist
 # dependencies
 DEPENDS=('privoxy' 'sed' 'grep' 'bash' 'wget')
 
@@ -43,6 +41,7 @@ function usage() {
     echo " "
     echo "Options:"
     echo "      -h:    Show this help."
+    echo "      -c:    Path to script configuration file. (default = OS specific)"
     echo "      -q:    Don't give any output."
     echo "      -v 1:  Enable verbosity 1. Show a little bit more output."
     echo "      -v 2:  Enable verbosity 2. Show a lot more output."
@@ -50,23 +49,120 @@ function usage() {
     echo "      -r:    Remove all lists build by this script."
 }
 
-if [ ${UID} -ne 0 ]; then
-    echo -e "Root privileges needed. Exit.\n\n"
-    usage
-    exit 1
-fi
-
-for dep in "${DEPENDS[@]}"; do
-    if ! type -p "${dep}" > /dev/null; then
-        echo "The command ${dep} can't be found. Please install the package providing ${dep} and run $0 again. Exit" >&2
+function prepare() {
+    if [ ${UID} -ne 0 ]; then
+        error -e "Root privileges needed. Exit.\n"
+        usage
         exit 1
     fi
-done
 
-if [[ ! -d "$(dirname ${SCRIPTCONF})" ]]; then
-    echo "The config directory $(dirname ${SCRIPTCONF}) doesn't exist. Please either adjust the variable SCRIPTCONF in this script or create the directory." >&2
-    exit 1
-fi
+    for dep in "${DEPENDS[@]}"; do
+        if ! type -p "${dep}" > /dev/null; then
+            error "The command ${dep} can't be found. Please install the package providing ${dep} and run $0 again. Exit"
+            info "To install all dependencies at once you can run 'https://github.com/Andrwe/privoxy-blocklist/blob/main/helper/install_deps.sh'"
+            exit 1
+        fi
+    done
+
+    OS="$(uname)"
+
+    if [ -z "${SCRIPTCONF:-}" ]; then
+        # script config-file
+        case "${OS}" in
+            "Darwin")
+                SCRIPTCONF="/usr/local/etc/privoxy-blocklist.conf"
+                ;;
+            *)
+                SCRIPTCONF="/etc/privoxy-blocklist.conf"
+                ;;
+        esac
+        if [ -f "/etc/conf.d/privoxy-blacklist" ]; then
+            SCRIPTCONF="/etc/conf.d/privoxy-blacklist"
+        fi
+    fi
+
+    if [[ ! -d "$(dirname "${SCRIPTCONF}")" ]]; then
+        info "creating missing config directory '$(dirname "${SCRIPTCONF}")'"
+        install -d -m 755 "$(dirname "${SCRIPTCONF}")"
+    fi
+
+    if [[ ! -f "${SCRIPTCONF}" ]]; then
+        info "No config found in ${SCRIPTCONF}. Creating default one and exiting because you might have to adjust it."
+        cat > "${SCRIPTCONF}" << EOF
+# Config of privoxy-blocklist
+
+# array of URL for AdblockPlus lists
+#  for more sources just add it within the round brackets
+URLS=("https://easylist-downloads.adblockplus.org/easylistgermany.txt" "https://easylist-downloads.adblockplus.org/easylist.txt")
+
+# config for privoxy initscript providing PRIVOXY_CONF, PRIVOXY_USER and PRIVOXY_GROUP
+INIT_CONF="/etc/conf.d/privoxy"
+
+# !! set these when config INIT_CONF doesn't exist and default values do not match your system !!
+# !! These values will be overwritten by INIT_CONF when exists !!
+#PRIVOXY_USER="privoxy"
+#PRIVOXY_GROUP="root"
+#PRIVOXY_CONF="/etc/privoxy/config"
+
+# name for lock file (default: script name)
+TMPNAME="\$(basename "\$(readlink -f "\${0}")")"
+# directory for temporary files
+TMPDIR="/tmp/\${TMPNAME}"
+
+# Debug-level
+#   -1 = quiet
+#    0 = normal
+#    1 = verbose
+#    2 = more verbose (debugging)
+#    3 = incredibly loud (function debugging)
+DBG=0
+EOF
+        exit 1
+    fi
+
+    if [[ ! -r "${SCRIPTCONF}" ]]; then
+        debug "Can't read ${SCRIPTCONF}. Permission denied." -1
+    fi
+
+    # load script config
+    # shellcheck disable=SC1090
+    source "${SCRIPTCONF}"
+    # load privoxy config
+    # shellcheck disable=SC1090
+    if [[ -r "${INIT_CONF}" ]]; then
+        source "${INIT_CONF}"
+    fi
+
+    # set command to be run on exit
+    if [ "${DBG}" -gt 2 ]; then
+        trap - INT TERM EXIT
+    fi
+
+    # check whether needed variables are set
+    if [[ -z "${PRIVOXY_CONF:-}" ]]; then
+        case "${OS}" in
+            "Darwin")
+                PRIVOXY_CONF="/usr/local/etc/privoxy/config"
+                ;;
+            *)
+                PRIVOXY_CONF="/etc/privoxy/config"
+                ;;
+        esac
+        PRIVOXY_CONF="/etc/privoxy/config"
+        info "\$PRIVOXY_CONF isn't set, falling back to '/etc/privoxy/config'"
+    fi
+    if [[ -z "${PRIVOXY_USER:-}" ]]; then
+        PRIVOXY_USER="privoxy"
+        info "\$PRIVOXY_USER isn't set, falling back to 'privoxy'"
+    fi
+    if [[ -z "${PRIVOXY_GROUP:-}" ]]; then
+        PRIVOXY_GROUP="root"
+        info "\$PRIVOXY_GROUP isn't set, falling back to 'root'"
+    fi
+
+    # set privoxy config dir
+    PRIVOXY_DIR="$(dirname "${PRIVOXY_CONF}")"
+}
 
 function debug() {
     if [ "${DBG}" -ge "${2}" ]; then
@@ -75,7 +171,11 @@ function debug() {
 }
 
 function error() {
-    printf '\e[1;31m%s\e[0m' "$@" >&2
+    printf '\e[1;31m%s\e[0m\n' "$@" >&2
+}
+
+function info() {
+    printf '\e[1;33m%s\e[0m\n' "$@"
 }
 
 function main() {
@@ -171,103 +271,52 @@ function main() {
     done
 }
 
-if [[ ! -f "${SCRIPTCONF}" ]]; then
-    echo "No config found in ${SCRIPTCONF}. Creating default one and exiting because you might have to adjust it."
-    cat > "${SCRIPTCONF}" << EOF
-# Config of privoxy-blocklist
+function lock() {
+    # file to store current PID
+    PID_FILE="${TMPDIR}/${TMPNAME}.lock"
 
-# array of URL for AdblockPlus lists
-#  for more sources just add it within the round brackets
-URLS=("https://easylist-downloads.adblockplus.org/easylistgermany.txt" "https://easylist-downloads.adblockplus.org/easylist.txt")
+    # create temporary directory and lock file
+    install -d -m700 "${TMPDIR}"
 
-# config for privoxy initscript providing PRIVOXY_CONF, PRIVOXY_USER and PRIVOXY_GROUP
-INIT_CONF="/etc/conf.d/privoxy"
-
-# !! if the config above doesn't exist set these variables here !!
-# !! These values will be overwritten by INIT_CONF !!
-PRIVOXY_USER="privoxy"
-PRIVOXY_GROUP="privoxy"
-PRIVOXY_CONF="/etc/privoxy/config"
-
-# name for lock file (default: script name)
-TMPNAME="\$(basename "\$(readlink -f "\${0}")")"
-# directory for temporary files
-TMPDIR="/tmp/\${TMPNAME}"
-
-# Debug-level
-#   -1 = quiet
-#    0 = normal
-#    1 = verbose
-#    2 = more verbose (debugging)
-#    3 = incredibly loud (function debugging)
-DBG=0
-EOF
-    exit 1
-fi
-
-if [[ ! -r "${SCRIPTCONF}" ]]; then
-    debug "Can't read ${SCRIPTCONF}. Permission denied." -1
-fi
-
-# load script config
-# shellcheck disable=SC1090
-source "${SCRIPTCONF}"
-# load privoxy config
-# shellcheck disable=SC1090
-if [[ -r "${INIT_CONF}" ]]; then
-    source "${INIT_CONF}"
-fi
-
-# check whether needed variables are set
-if [[ -z "${PRIVOXY_CONF}" ]]; then
-    error "\$PRIVOXY_CONF isn't set."
-    echo "Please either provide a valid initscript config or set it in ${SCRIPTCONF} ." >&2
-    exit 1
-fi
-if [[ -z "${PRIVOXY_USER}" ]]; then
-    error "\$PRIVOXY_USER isn't set"
-    echo "Please either provide a valid initscript config or set it in ${SCRIPTCONF} ." >&2
-    exit 1
-fi
-if [[ -z "${PRIVOXY_GROUP}" ]]; then
-    error "\$PRIVOXY_GROUP isn't set."
-    echo "Please either provide a valid initscript config or set it in ${SCRIPTCONF} ." >&2
-    exit 1
-fi
-
-# set command to be run on exit
-if [ "${DBG}" -le 2 ]; then
-    trap 'rm -fr "${TMPDIR}";exit' INT TERM EXIT
-fi
-
-# set privoxy config dir
-PRIVOXY_DIR="$(dirname "${PRIVOXY_CONF}")"
-
-# file to store current PID
-PID_FILE="${TMPDIR}/${TMPNAME}.lock"
-
-# create temporary directory and lock file
-install -d -m700 "${TMPDIR}"
-
-# check lock file
-if [ -f "${PID_FILE}" ]; then
-    if pgrep -P "$(< "${PID_FILE}")"; then
-        echo "An Instance of ${TMPNAME} is already running. Exit"
-        exit 1
+    # check lock file
+    if [ -f "${PID_FILE}" ]; then
+        if pgrep -P "$(< "${PID_FILE}")"; then
+            echo "An instance of ${TMPNAME} is already running. Exit"
+            exit 1
+        fi
+        debug "Found dead lock file." 0
+        rm -f "${PID_FILE}"
+        debug "File removed." 0
     fi
-    debug "Found dead lock file." 0
-    rm -f "${PID_FILE}"
-    debug "File removed." 0
-fi
 
-# safe PID in lock-file
-echo $$ > "${PID_FILE}"
+    # safe PID in lock-file
+    echo $$ > "${PID_FILE}"
+}
+
+function remove() {
+            read -rp "Do you really want to remove all build lists?(y/N) " choice
+            if [ "${choice}" != "y" ]; then
+                exit 0
+    fi
+            if rm -rf "${PRIVOXY_DIR}/"*.script.{action,filter} \
+                && sed '/^actionsfile .*\.script\.action$/d;/^filterfile .*\.script\.filter$/d' -i "${PRIVOXY_CONF}"; then
+                echo "Lists removed."
+                exit 0
+    fi
+            error "An error occured while removing the lists."
+            error "Please have a look into ${PRIVOXY_DIR} whether there are .script.* files and search for *.script.* in ${PRIVOXY_CONF}."
+            exit 1
+}
 
 VERBOSE=()
+method="main"
 
 # loop for options
-while getopts ":hrqv:" opt; do
+while getopts ":c:hrqv:" opt; do
     case "${opt}" in
+        "c")
+            SCRIPTCONF="${OPTARG}"
+            ;;
         "v")
             DBG="${OPTARG}"
             VERBOSE=("-v")
@@ -276,17 +325,7 @@ while getopts ":hrqv:" opt; do
             DBG=-1
             ;;
         "r")
-            read -rp "Do you really want to remove all build lists?(y/N) " choice
-            if [ "${choice}" != "y" ]; then
-                exit 0
-            fi
-            if rm -rf "${PRIVOXY_DIR}/"*.script.{action,filter} \
-                && sed '/^actionsfile .*\.script\.action$/d;/^filterfile .*\.script\.filter$/d' -i "${PRIVOXY_CONF}"; then
-                echo "Lists removed."
-                exit 0
-            fi
-            echo -e "An error occured while removing the lists.\nPlease have a look into ${PRIVOXY_DIR} whether there are .script.* files and search for *.script.* in ${PRIVOXY_CONF}."
-            exit 1
+            method="remove"
             ;;
         ":")
             echo "${TMPNAME}: -${OPTARG} requires an argument" >&2
@@ -299,8 +338,12 @@ while getopts ":hrqv:" opt; do
     esac
 done
 
+trap 'rm -fr "${TMPDIR}";exit' INT TERM EXIT
+
+prepare
+lock
 debug "URL-List: ${URLS}\nPrivoxy-Configdir: ${PRIVOXY_DIR}\nTemporary directory: ${TMPDIR}" 2
-main
+"${method}"
 
 # restore default exit command
 trap - INT TERM EXIT

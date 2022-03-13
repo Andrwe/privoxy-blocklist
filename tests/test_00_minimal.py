@@ -17,7 +17,8 @@ def test_permissions():
         ".editorconfig",
         "LICENSE",
         "README.md",
-        "Dockerfile",
+        "tests/Dockerfile_alpine",
+        "tests/Dockerfile_ubuntu",
         "tests/requirements.txt",
     ]:
         path = Path(filepath)

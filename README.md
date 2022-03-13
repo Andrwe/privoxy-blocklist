@@ -43,6 +43,11 @@ To start a single test file you can run:
 ./tests/run.sh tests/test_….py
 ```
 
+To start all tests on ubuntu:
+```
+./tests/run.sh -o ubuntu
+```
+
 The whole process simplified by [./tests/run.sh](https://github.com/Andrwe/privoxy-blocklist/blob/master/tests/run.sh) runs the following:
 
 1. build docker image based on [project Dockerfile](https://github.com/Andrwe/privoxy-blocklist/blob/master/Dockerfile)
