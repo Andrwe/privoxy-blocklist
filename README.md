@@ -19,19 +19,29 @@ Due to this behaviour the script must run as root user to be able to modify the 
 
 Either run `privoxy-blocklist.sh` manually with root privileges (e.g., `sudo privoxy-blocklist.sh`) or via root cronjob.
 
-## Tests
+## Development
+
+### Release
+
+The release process is automated via github action [Release](https://github.com/Andrwe/privoxy-blocklist/actions/workflows/release.yml) and triggered by pushing a tag to the `main` branch.
+
+The following tags are recognized:
+
+| Tag-Schema | Result |
+| ---------- | ------ |
+| `[0-9]+.[0-9]+.[0-9]+` | create public release e.g., 0.4.0 |
+| `[0-9]+.[0-9]+.[0-9]+-a` | create private alpha release e.g., 0.4.0-a (only visible to collaborators) |
+| `[0-9]+.[0-9]+.[0-9]+-rc` | create public release candidate e.g., 0.4.0-rc (pre-release) |
+
+### Tests
 
 Code changes must be tested to ensure that all functionality is working as intended.
 For that a pytest based test suite is maintained and runs on every pull request within [Gitlab Actions](https://github.com/Andrwe/privoxy-blocklist/actions).
 
-### Run Local Tests
+#### Run Local Tests
 
 The test suite is designed to run within a docker container based on the definition of this repository.
 It is currently only tested on Ubuntu Linux but should work on every system with a POSIX compliant shell and docker.
-
-#### Docker
-
-For this method you only require docker to be installed and the permission to run docker containers with volume mounts.
 
 To start all tests of the test suite just run:
 ```
