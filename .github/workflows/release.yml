@@ -1,0 +1,48 @@
+---
+# yamllint disable rule:line-length
+name: "Release"
+
+"on":
+  push:
+    branches: [main]
+    tags:
+      # life version e.g., 0.4.0
+      - '[0-9]+.[0-9]+.[0-9]+'
+      # alpha version e.g., 0.4.0-a
+      - '[0-9]+.[0-9]+.[0-9]+-a'
+      # release candidate e.g., 0.4.0-rc
+      - '[0-9]+.[0-9]+.[0-9]+-rc'
+  workflow_dispatch:
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Update version
+        run: sed -i "s/<main>/${GITHUB_REF_NAME}/" privoxy-blocklist.sh
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, 'a') }}
+        with:
+          draft: true
+          prerelease: true
+          files: privoxy-blocklist.sh
+          generate_release_notes: true
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        with:
+          draft: ${{ contains(github.ref, 'a') }}
+          prerelease: ${{ contains(github.ref, 'a') || contains(github.ref, 'rc') }}
+          files: privoxy-blocklist.sh
+          generate_release_notes: true

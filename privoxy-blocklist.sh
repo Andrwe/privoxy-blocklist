@@ -4,7 +4,7 @@
 #
 #                  Author: Andrwe Lord Weber
 #                  Mail: lord-weber-andrwe <at> andrwe <dot> org
-#                  Version: 0.4
+#                  Version: <main>
 #                  URL: http://andrwe.dyndns.org/doku.php/scripting/bash/privoxy-blocklist
 #
 ##################

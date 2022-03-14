@@ -32,21 +32,3 @@ jobs:
 
       - name: run pytest
         run: pytest -v -s --color yes tests/
-
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, 'a') }}
-        with:
-          draft: true
-          prerelease: true
-          files: privoxy-blocklist.sh
-          generate_release_notes: true
-
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        if: ${{ startsWith(github.ref, 'refs/tags/') }}
-        with:
-          draft: ${{ contains(github.ref, 'a') }}
-          prerelease: ${{ contains(github.ref, 'a') || contains(github.ref, 'rc') }}
-          files: privoxy-blocklist.sh
-          generate_release_notes: true
