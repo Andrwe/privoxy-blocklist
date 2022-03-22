@@ -23,7 +23,7 @@ repos:
     hooks:
       - id: shfmt
   - repo: https://github.com/AleksaC/hadolint-py
-    rev: v2.8.0
+    rev: v2.9.2
     hooks:
       - id: hadolint
         args:
