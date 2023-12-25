@@ -1,7 +1,7 @@
 ---
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.2.0
+    rev: v4.5.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -15,15 +15,15 @@ repos:
       - id: check-executables-have-shebangs
       - id: requirements-txt-fixer
   - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.8.0.4
+    rev: v0.9.0.6
     hooks:
       - id: shellcheck
   - repo: https://github.com/maxwinterstein/shfmt-py
-    rev: v3.4.3.1
+    rev: v3.7.0.1
     hooks:
       - id: shfmt
   - repo: https://github.com/AleksaC/hadolint-py
-    rev: v2.10.0
+    rev: v2.12.0.3
     hooks:
       - id: hadolint
         args:
@@ -34,18 +34,18 @@ repos:
           - '--ignore'
           - 'DL3013'
   - repo: https://github.com/psf/black
-    rev: 22.3.0
+    rev: 23.12.1
     hooks:
       - id: black
   - repo: https://github.com/PyCQA/flake8
-    rev: 4.0.1
+    rev: 6.1.0
     hooks:
       - id: flake8
         args:
           - '--max-line-length'
           - '99'
   - repo: https://github.com/PyCQA/prospector
-    rev: 1.7.7
+    rev: v1.10.3
     hooks:
       - id: prospector
         args:
@@ -56,7 +56,7 @@ repos:
           - pytest
           - pytest-shell-utilities
   - repo: https://github.com/sirosen/check-jsonschema
-    rev: 0.14.3
+    rev: 0.27.3
     hooks:
       - id: check-github-workflows
       - id: check-github-actions
