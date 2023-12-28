@@ -178,6 +178,7 @@ function info() {
     printf '\e[1;33m%s\e[0m\n' "$@"
 }
 
+# shellcheck disable=SC2317
 function main() {
     for url in "${URLS[@]}"; do
         debug "Processing ${url} ...\n" 0
@@ -293,6 +294,7 @@ function lock() {
     echo $$ > "${PID_FILE}"
 }
 
+# shellcheck disable=SC2317
 function remove() {
             read -rp "Do you really want to remove all build lists?(y/N) " choice
             if [ "${choice}" != "y" ]; then
