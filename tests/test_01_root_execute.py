@@ -6,7 +6,7 @@ test execution as root
 from tempfile import gettempdir
 from pathlib import Path
 from shutil import which
-import pytestshellutils
+import requests
 
 
 def test_missing_deps(shell, privoxy_blocklist):
@@ -62,11 +62,22 @@ def test_next_run(shell, privoxy_blocklist):
     assert ret_privo.returncode == 0
 
 
-def test_start_privoxy(shell):
+def test_request_success(start_privoxy):
     """test start of privoxy"""
-    run = pytestshellutils.shell.Daemon(
-        script_name="/usr/sbin/privoxy", cwd="/etc/privoxy", start_timeout=10
+    assert start_privoxy
+    resp = requests.get(
+        "https://duckduckgo.com", proxies={"https": "http://localhost:8118"}, timeout=2
     )
-    assert run.start()
-    assert run.is_running()
-    assert shell.run("pgrep", "-f", "/usr/sbin/privoxy").returncode == 0
+    assert resp.raise_for_status() is None
+
+
+def test_request_fail(start_privoxy):
+    """test start of privoxy"""
+    assert start_privoxy
+    resp = requests.get(
+        "https://duckduckgo.com?foo=bar&werbemittel=123",
+        proxies={"https": "http://localhost:8118"},
+        timeout=2,
+    )
+    print(resp.text)
+    assert resp.raise_for_status() is None
