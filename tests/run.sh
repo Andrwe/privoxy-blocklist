@@ -4,7 +4,7 @@ set -e
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 GIT_DIR="$(dirname "${SCRIPT_DIR}")"
-os="alpine"
+os="ubuntu"
 
 while getopts ":o:r" opt; do
     case "${opt}" in
