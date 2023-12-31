@@ -4,11 +4,32 @@
 import os
 from pathlib import Path
 from re import search
-from typing import Generator, Optional
+from typing import Dict, Generator, Optional, cast
 
 import pytest
 import requests
+from pytest import CollectReport, StashKey
 from pytestshellutils.shell import Daemon
+
+phase_report_key = StashKey[Dict[str, CollectReport]]()
+
+
+# based on
+# https://docs.pytest.org/en/latest/example/simple.html#making-test-result-information-available-in-fixtures
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_runtest_makereport(item: pytest.Item):
+    """Capture prints of fixtures."""
+    # execute all other hooks to obtain the report object
+    report = yield
+
+    if item.parent:
+        # store test results for each phase ("setup", "call", "teardown") of each test
+        # within module-scope
+        item.parent.stash.setdefault(
+            phase_report_key, cast(Dict[str, CollectReport], {})
+        )[f"{report.nodeid}_{report.when}"] = report
+
+    return report
 
 
 @pytest.fixture(scope="module")
@@ -26,7 +47,7 @@ def privoxy_blocklist() -> str:
 
 
 @pytest.fixture(scope="module")
-def start_privoxy() -> Generator[bool, None, None]:
+def start_privoxy(request) -> Generator[bool, None, None]:
     """Test start of privoxy."""
     run = Daemon(
         script_name="/usr/sbin/privoxy",
@@ -37,7 +58,18 @@ def start_privoxy() -> Generator[bool, None, None]:
     )
     run.start()
     yield run.is_running()
-    run.terminate()
+    run_result = run.terminate()
+    # request.node is an "module" because we use the "module" scope
+    report = request.node.stash[phase_report_key]
+    failed = 0
+    for node in report:
+        node_report = report[node]
+        if node_report.failed:
+            failed += 1
+    if failed > 0:
+        print(
+            f"\n\nprivoxy-results\n  stdout:\n{run_result.stdout}\n  stderr:\n{run_result.stderr}"
+        )
 
 
 @pytest.fixture(scope="module")

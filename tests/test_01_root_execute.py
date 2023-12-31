@@ -8,27 +8,6 @@ from tempfile import gettempdir
 import requests
 
 
-def test_missing_deps(shell, privoxy_blocklist) -> None:
-    """Test error when dependency is missing."""
-    if which("apk"):
-        ret_pkg = shell.run("apk", "del", "privoxy")
-    elif which("apt-get"):
-        ret_pkg = shell.run(
-            "sudo",
-            "apt-get",
-            "remove",
-            "--yes",
-            "privoxy",
-            env={"DEBIAN_FRONTEND": "noninteractive"},
-        )
-    assert ret_pkg.returncode == 0
-    ret_script = shell.run("sudo", privoxy_blocklist)
-    assert ret_script.returncode == 1
-    assert "Please install the package providing" in ret_script.stderr
-    ret_install = shell.run("sudo", str(Path("helper/install_deps.sh").absolute()))
-    assert ret_install.returncode == 0
-
-
 def test_config_generator(shell, privoxy_blocklist) -> None:
     """Test config generator with default path."""
     config = Path("/etc/privoxy-blocklist.conf")
@@ -102,3 +81,23 @@ def run_request(
     # run assert here to see affected URL in assertion
     assert resp.status_code in expected_code
     return resp
+
+
+# must be last test as it will uninstall dependencies and check error handling
+def test_missing_deps(shell, privoxy_blocklist) -> None:
+    """Test error when dependency is missing."""
+    if which("apk"):
+        ret_pkg = shell.run("apk", "del", "privoxy")
+    elif which("apt-get"):
+        ret_pkg = shell.run(
+            "sudo",
+            "apt-get",
+            "remove",
+            "--yes",
+            "privoxy",
+            env={"DEBIAN_FRONTEND": "noninteractive"},
+        )
+    assert ret_pkg.returncode == 0
+    ret_script = shell.run("sudo", privoxy_blocklist)
+    assert ret_script.returncode == 1
+    assert "Please install the package providing" in ret_script.stderr
