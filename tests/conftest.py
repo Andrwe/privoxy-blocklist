@@ -65,5 +65,5 @@ def supported_schemes(check_https_inspection) -> list[str]:
     """Return support schemes (HTTP, HTTPS) based on privoxy build specs."""
     schemes = ["http"]
     if check_https_inspection:
-        schemes.extend("https")
+        schemes.extend(["https"])
     return schemes

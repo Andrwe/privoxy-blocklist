@@ -59,13 +59,29 @@ repos:
           - '--profile'
           - '.ci_config/prospector.yaml'
         additional_dependencies:
-          - ".[with_mypy,with_bandit,with_pylint,with_mccabe,with_pydocstyle]"
+          # cannot use with_ syntax as pre-commit.ci does not support it
+          - bandit
+          - mccabe
+          - mypy
+          - pydocstyle
+          - pylint
           - pytest
           - pytest-shell-utilities
-          - types-requests
           - requests
+          - types-requests
   - repo: https://github.com/sirosen/check-jsonschema
     rev: 0.27.3
     hooks:
       - id: check-github-workflows
       - id: check-github-actions
+  - repo: local
+    hooks:
+      - id: permission-check
+        name: check permissions using pytest
+        entry: pytest -v -s -k test_permissions tests/test_00_minimal.py
+        language: python
+        pass_filenames: false
+        additional_dependencies:
+          - pytest
+          - pytest-shell-utilities
+          - requests
