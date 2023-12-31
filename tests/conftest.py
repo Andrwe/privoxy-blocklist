@@ -50,8 +50,8 @@ def privoxy_blocklist() -> str:
 def start_privoxy(request) -> Generator[bool, None, None]:
     """Test start of privoxy."""
     run = Daemon(
-        script_name="/usr/sbin/privoxy",
-        base_script_args=["--no-daemon"],
+        script_name="/usr/bin/sudo",
+        base_script_args=["/usr/sbin/privoxy", "--no-daemon"],
         cwd="/etc/privoxy",
         start_timeout=10,
         check_ports=[8118],
