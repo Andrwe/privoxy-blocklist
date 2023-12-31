@@ -28,7 +28,9 @@ jobs:
           sudo apt-get install python3-pip --yes
           sudo sh helper/install_deps.sh
           pip install -r ./tests/requirements.txt
-          service privoxy stop || true
+          sudo systemctl disable --now privoxy || true
 
       - name: run pytest
-        run: pytest -v -s --color yes tests/
+        run: |
+          sudo pkill -9 privoxy || true
+          pytest -v -s --color yes tests/
