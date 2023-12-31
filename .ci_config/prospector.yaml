@@ -1,5 +1,8 @@
 ---
 autodetect: false
+doc-warnings: true
+member-warnings: true
+test-warnings: true
 inherits:
   - default
 
@@ -7,3 +10,6 @@ bandit:
   run: true
   options:
     config: .ci_config/bandit.yml
+
+mypy:
+  run: true

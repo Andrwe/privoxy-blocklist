@@ -19,6 +19,70 @@ Due to this behaviour the script must run as root user to be able to modify the 
 
 Either run `privoxy-blocklist.sh` manually with root privileges (e.g., `sudo privoxy-blocklist.sh`) or via root cronjob.
 
+## Feature Support
+
+The following table shows features of AdBlock Plus filters and there status within privoxy-blocklist:
+
+| Feature | Type | Status | Test |
+| ------- | ---- | ------ | ---- |
+| `#$#` | CSS selector - Snippet filter | :question: | :question: |
+| `:-abp-contains()` | extended CSS selector | :question: | :question: |
+| `:-abp-has()` | extended CSS selector | :question: | :question: |
+| `:-abp-properties()` | extended CSS selector | :question: | :question: |
+| `||…` | block domain matching excluding scheme | :question: | :question: |
+| `|…|` | block exact domain matching including scheme | :question: | :question: |
+| `!…` | comments | :white_check_mark: | |
+| `csp=` | filter options | :question: | :question: |
+| `##…[…]` | CSS attribute selector | :question: | :question: |
+| `##` | CSS selector - Element hiding | :white_check_mark: | |
+| `#?#` | CSS selector - Element hiding emulation | :question: | :question: |
+| `#@#` | CSS selector - Element hiding exception | :question: | :question: |
+| `document` | filter options | :question: | :question: |
+| `~domain=` | filter options | :question: | :question: |
+| `domain=` | filter options | :question: | :question: |
+| `~elemhide` | filter options | :question: | :question: |
+| `elemhide` | filter options | :question: | :question: |
+| `@@||…` | exception for blocking rules | :white_check_mark: | |
+| `font` | filter options | :question: | :question: |
+| `genericblock` | filter options | :question: | :question: |
+| `generichide` | filter options | :question: | :question: |
+| `~image` | filter options | :question: | :question: |
+| `image` | filter options | :white_check_mark: | |
+| `match-case` | filter options | :question: | :question: |
+| `media` | filter options | :question: | :question: |
+| `~object` | filter options | :question: | :question: |
+| `object` | filter options | :question: | :question: |
+| `~other` | filter options | :question: | :question: |
+| `other` | filter options | :question: | :question: |
+| `~ping` | filter options | :question: | :question: |
+| `ping` | filter options | :question: | :question: |
+| `popup` | filter options | :question: | :question: |
+| `rewrite=` | filter options | :question: | :question: |
+| `~script` | filter options | :question: | :question: |
+| `script`  | filter options | :question: | :question: |
+| `sitekey=` | filter options | :question: | :question: |
+| `~stylesheet` | filter options | :question: | :question: |
+| `stylesheet` | filter options | :question: | :question: |
+| `~subdocument` | filter options | :question: | :question: |
+| `subdocument` | filter options | :question: | :question: |
+| `~third-party` | filter options | :question: | :question: |
+| `third-party` | filter options | :question: | :question: |
+| `~webrtc` | filter options | :question: | :question: |
+| `webrtc` | filter options | :question: | :question: |
+| `~websocket` | filter options | :question: | :question: |
+| `websocket` | filter options | :question: | :question: |
+| `~xmlhttprequest` | filter options | :question: | :question: |
+| `xmlhttprequest` | filter options | :question: | :question: |
+
+* :question: => status must be checked
+* :white_check_mark: => implemented
+* :construction: => work in progress
+
+Sources:
+
+* [](https://help.adblockplus.org/hc/en-us/articles/360062733293#options)
+* [](https://adblockplus.org/filter-cheatsheet)
+
 ## Development
 
 ### Release

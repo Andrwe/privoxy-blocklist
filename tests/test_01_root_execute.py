@@ -1,16 +1,15 @@
-"""
-test execution as root
-"""
+"""Test execution as root."""
 
 
-from tempfile import gettempdir
 from pathlib import Path
 from shutil import which
+from tempfile import gettempdir
+
 import requests
 
 
-def test_missing_deps(shell, privoxy_blocklist):
-    """test error when dependency is missing"""
+def test_missing_deps(shell, privoxy_blocklist) -> None:
+    """Test error when dependency is missing."""
     if which("apk"):
         ret_pkg = shell.run("apk", "del", "privoxy")
     elif which("apt-get"):
@@ -30,8 +29,8 @@ def test_missing_deps(shell, privoxy_blocklist):
     assert ret_install.returncode == 0
 
 
-def test_config_generator(shell, privoxy_blocklist):
-    """test config generator with default path"""
+def test_config_generator(shell, privoxy_blocklist) -> None:
+    """Test config generator with default path."""
     config = Path("/etc/privoxy-blocklist.conf")
     if config.exists():
         config.unlink()
@@ -41,8 +40,8 @@ def test_config_generator(shell, privoxy_blocklist):
     assert config.exists()
 
 
-def test_custom_config_generator(shell, privoxy_blocklist):
-    """test config generator with custom path"""
+def test_custom_config_generator(shell, privoxy_blocklist) -> None:
+    """Test config generator with custom path."""
     config = Path(f"{gettempdir()}/privoxy-blocklist")
     if config.exists():
         config.unlink()
@@ -52,8 +51,8 @@ def test_custom_config_generator(shell, privoxy_blocklist):
     assert config.exists()
 
 
-def test_next_run(shell, privoxy_blocklist):
-    """test followup runs"""
+def test_next_run(shell, privoxy_blocklist) -> None:
+    """Test followup runs."""
     ret_script = shell.run("sudo", privoxy_blocklist)
     assert ret_script.returncode == 0
     ret_privo = shell.run(
@@ -62,22 +61,39 @@ def test_next_run(shell, privoxy_blocklist):
     assert ret_privo.returncode == 0
 
 
-def test_request_success(start_privoxy):
-    """test start of privoxy"""
-    assert start_privoxy
-    resp = requests.get(
-        "https://duckduckgo.com", proxies={"https": "http://localhost:8118"}, timeout=2
-    )
-    assert resp.raise_for_status() is None
+def test_request_success(start_privoxy, supported_schemes) -> None:
+    """Test URLs not blocked by privoxy."""
+    urls = ["duckduckgo.com/", "hs-exp.jp/ads/"]
+    run_requests(start_privoxy, supported_schemes, urls, [200, 301, 302])
 
 
-def test_request_fail(start_privoxy):
-    """test start of privoxy"""
+def test_request_block_url(start_privoxy, supported_schemes) -> None:
+    """Test URLs blocked by privoxy due to easylist."""
+    urls = ["andrwe.org/ads/", "andrwe.jp/ads/", "pubfeed.linkby.com"]
+    run_requests(start_privoxy, supported_schemes, urls, [403])
+
+
+def run_requests(
+    start_privoxy, supported_schemes, urls: list[str], expected_code: list[int]
+) -> None:
+    """Run requests for all given urls and check for expected_code."""
+    for url in urls:
+        for scheme in supported_schemes:
+            run_request(
+                start_privoxy, scheme=scheme, url=url, expected_code=expected_code
+            )
+
+
+def run_request(
+    start_privoxy, scheme: str, url: str, expected_code: list[int]
+) -> requests.Response:
+    """Run a request for given URL and return status_code."""
     assert start_privoxy
     resp = requests.get(
-        "https://duckduckgo.com?foo=bar&werbemittel=123",
-        proxies={"https": "http://localhost:8118"},
-        timeout=2,
+        f"{scheme}://{url}",
+        proxies={f"{scheme}": "http://localhost:8118"},
+        timeout=10,
     )
-    print(resp.text)
-    assert resp.raise_for_status() is None
+    # run assert here to see affected URL in assertion
+    assert resp.status_code in expected_code
+    return resp

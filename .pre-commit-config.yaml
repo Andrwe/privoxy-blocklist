@@ -33,6 +33,13 @@ repos:
           - 'DL3008'
           - '--ignore'
           - 'DL3013'
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args:
+          - '--profile'
+          - 'black'
   - repo: https://github.com/psf/black
     rev: 23.12.1
     hooks:
@@ -52,9 +59,11 @@ repos:
           - '--profile'
           - '.ci_config/prospector.yaml'
         additional_dependencies:
-          - bandit
+          - ".[with_mypy,with_bandit,with_pylint,with_mccabe,with_pydocstyle]"
           - pytest
           - pytest-shell-utilities
+          - types-requests
+          - requests
   - repo: https://github.com/sirosen/check-jsonschema
     rev: 0.27.3
     hooks:
