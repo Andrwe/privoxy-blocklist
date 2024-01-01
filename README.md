@@ -29,8 +29,8 @@ The following table shows features of AdBlock Plus filters and there status with
 | `:-abp-contains()` | extended CSS selector | :question: | :question: |
 | `:-abp-has()` | extended CSS selector | :question: | :question: |
 | `:-abp-properties()` | extended CSS selector | :question: | :question: |
-| `||…` | block domain matching excluding scheme | :question: | :question: |
-| `|…|` | block exact domain matching including scheme | :question: | :question: |
+| `\|\|…` | block domain matching excluding scheme | :white_check_mark: | :white_check_mark: |
+| `\|…\|` | block exact domain matching including scheme | :question: | :question: |
 | `!…` | comments | :white_check_mark: | |
 | `csp=` | filter options | :question: | :question: |
 | `##…[…]` | CSS attribute selector | :question: | :question: |
@@ -42,7 +42,7 @@ The following table shows features of AdBlock Plus filters and there status with
 | `domain=` | filter options | :question: | :question: |
 | `~elemhide` | filter options | :question: | :question: |
 | `elemhide` | filter options | :question: | :question: |
-| `@@||…` | exception for blocking rules | :white_check_mark: | |
+| `@@\|\|…` | exception for domain blocking rules | :white_check_mark: | |
 | `font` | filter options | :question: | :question: |
 | `genericblock` | filter options | :question: | :question: |
 | `generichide` | filter options | :question: | :question: |
