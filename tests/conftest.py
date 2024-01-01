@@ -76,7 +76,13 @@ def start_privoxy(request: pytest.FixtureRequest) -> Generator[bool, None, None]
             if not path_obj.exists():
                 print(path, " does not exist. ----------------")
                 continue
-            print(path, ":", oct(path_obj.stat().st_mode))
+            print(
+                path,
+                ":",
+                oct(path_obj.stat().st_mode),
+                path_obj.stat().st_uid,
+                path_obj.stat().st_gid,
+            )
     run = Daemon(
         script_name="/usr/sbin/privoxy",
         base_script_args=["--no-daemon", "--user", "root"],

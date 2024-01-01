@@ -31,6 +31,12 @@ jobs:
           sudo pip install -r ./tests/requirements.txt
           sudo systemctl disable --now privoxy || true
 
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ runner.debug || vars.ACTIONS_STEP_DEBUG == "true" }}
+        with:
+          limit-access-to-actor: true
+
       - name: run pytest
         env:
           ACTIONS_STEP_DEBUG: ${{ vars.ACTIONS_STEP_DEBUG }}
