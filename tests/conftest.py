@@ -62,7 +62,7 @@ def privoxy_blocklist() -> str:
 @pytest.fixture(scope="module")
 def start_privoxy(request: pytest.FixtureRequest) -> Generator[bool, None, None]:
     """Test start of privoxy."""
-    print("debugging: ", debug_enabled())
+    print("debugging:", debug_enabled())
     if debug_enabled():
         for env in ["USER", "UID", "PWD"]:
             print(env, ": ", os.environ.get(env))

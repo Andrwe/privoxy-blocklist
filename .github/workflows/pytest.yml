@@ -38,4 +38,4 @@ jobs:
         run: |
           sudo pkill -9 privoxy || true
           # run pytest as sudo to allow pytestshellutils to stop privoxy
-          sudo pytest -v -s --color yes tests/
+          sudo --preserve-env=ACTIONS_STEP_DEBUG,RUNNER_DEBUG pytest -v -s --color yes tests/
