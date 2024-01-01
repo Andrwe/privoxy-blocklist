@@ -9,9 +9,9 @@ name: "Release"
       # life version e.g., 0.4.0
       - '[0-9]+.[0-9]+.[0-9]+'
       # alpha version e.g., 0.4.0-a
-      - '[0-9]+.[0-9]+.[0-9]+-a'
+      - '[0-9]+.[0-9]+.[0-9]+-a[0-9]*'
       # release candidate e.g., 0.4.0-rc
-      - '[0-9]+.[0-9]+.[0-9]+-rc'
+      - '[0-9]+.[0-9]+.[0-9]+-rc[0-9]*'
   workflow_dispatch:
 
 jobs:
