@@ -83,9 +83,10 @@ def start_privoxy(request: pytest.FixtureRequest) -> Generator[bool, None, None]
                 path_obj.stat().st_uid,
                 path_obj.stat().st_gid,
             )
+    # privoxy must run as privoxy to suit apparmor-config on ubuntu
     run = Daemon(
         script_name="/usr/sbin/privoxy",
-        base_script_args=["--no-daemon", "--user", "root"],
+        base_script_args=["--no-daemon", "--user", "privoxy"],
         cwd="/etc/privoxy",
         start_timeout=10,
         check_ports=[8118],

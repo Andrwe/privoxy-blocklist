@@ -35,7 +35,7 @@ EOF
     if ! grep -q '^ca-directory' /etc/privoxy/config; then
         cat >> /etc/privoxy/config << EOF
 ca-directory /etc/privoxy/CA
-certificate-directory /etc/privoxy/CA/certs
+certificate-directory /var/lib/privoxy/certs
 trusted-cas-file /etc/ssl/certs/ca-certificates.crt
 ca-cert-file cacert.crt
 ca-key-file cakey.pem
