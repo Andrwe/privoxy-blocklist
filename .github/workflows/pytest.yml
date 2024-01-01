@@ -27,8 +27,15 @@ jobs:
           sudo apt-get update -qq --yes
           sudo apt-get install python3-pip --yes
           sudo sh helper/install_deps.sh
-          pip install -r ./tests/requirements.txt
-          service privoxy stop || true
+          # install via sudo to run pytest as root - see below
+          sudo pip install -r ./tests/requirements.txt
+          sudo systemctl disable --now privoxy || true
 
       - name: run pytest
-        run: pytest -v -s --color yes tests/
+        env:
+          ACTIONS_STEP_DEBUG: ${{ vars.ACTIONS_STEP_DEBUG }}
+          RUNNER_DEBUG: ${{ runner.debug }}
+        run: |
+          sudo pkill -9 privoxy || true
+          # run pytest as sudo to allow pytestshellutils to stop privoxy
+          sudo --preserve-env=ACTIONS_STEP_DEBUG,RUNNER_DEBUG pytest -v -s --color yes tests/
