@@ -26,6 +26,7 @@ if exists apt-get; then
     # prepare HTTPS inspection
     mkdir -p /etc/privoxy/CA/certs /usr/local/share/ca-certificates/privoxy
     openssl req -new -x509 -extensions v3_ca -keyout /etc/privoxy/CA/cakey.pem -out /etc/privoxy/CA/cacert.crt -days 3650 -noenc -batch
+    chown -R privoxy /etc/privoxy/CA
     if ! grep -q '^{+https-inspection}' /etc/privoxy/user.action; then
         cat >> /etc/privoxy/user.action << EOF
 {+https-inspection}
