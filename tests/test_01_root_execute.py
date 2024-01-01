@@ -3,7 +3,6 @@
 
 from pathlib import Path
 from shutil import which
-from tempfile import gettempdir
 
 import requests
 
@@ -13,18 +12,18 @@ def test_config_generator(shell, privoxy_blocklist) -> None:
     config = Path("/etc/privoxy-blocklist.conf")
     if config.exists():
         config.unlink()
-    ret = shell.run("sudo", privoxy_blocklist)
+    ret = shell.run(privoxy_blocklist)
     assert ret.returncode == 1
     assert "Creating default one and exiting" in ret.stdout
     assert config.exists()
 
 
-def test_custom_config_generator(shell, privoxy_blocklist) -> None:
+def test_custom_config_generator(shell, tmp_path, privoxy_blocklist) -> None:
     """Test config generator with custom path."""
-    config = Path(f"{gettempdir()}/privoxy-blocklist")
+    config = Path(f"{tmp_path}/privoxy-blocklist")
     if config.exists():
         config.unlink()
-    ret = shell.run("sudo", privoxy_blocklist, "-c", str(config))
+    ret = shell.run(privoxy_blocklist, "-c", str(config))
     assert ret.returncode == 1
     assert "Creating default one and exiting" in ret.stdout
     assert config.exists()
@@ -32,7 +31,7 @@ def test_custom_config_generator(shell, privoxy_blocklist) -> None:
 
 def test_next_run(shell, privoxy_blocklist) -> None:
     """Test followup runs."""
-    ret_script = shell.run("sudo", privoxy_blocklist)
+    ret_script = shell.run(privoxy_blocklist)
     assert ret_script.returncode == 0
     ret_privo = shell.run(
         "/usr/sbin/privoxy", "--no-daemon", "--config-test", "/etc/privoxy/config"
@@ -90,7 +89,6 @@ def test_missing_deps(shell, privoxy_blocklist) -> None:
         ret_pkg = shell.run("apk", "del", "privoxy")
     elif which("apt-get"):
         ret_pkg = shell.run(
-            "sudo",
             "apt-get",
             "remove",
             "--yes",
@@ -98,6 +96,6 @@ def test_missing_deps(shell, privoxy_blocklist) -> None:
             env={"DEBIAN_FRONTEND": "noninteractive"},
         )
     assert ret_pkg.returncode == 0
-    ret_script = shell.run("sudo", privoxy_blocklist)
+    ret_script = shell.run(privoxy_blocklist)
     assert ret_script.returncode == 1
     assert "Please install the package providing" in ret_script.stderr
