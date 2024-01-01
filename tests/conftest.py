@@ -23,11 +23,12 @@ def pytest_runtest_makereport(item: pytest.Item):
     report = yield
 
     if item.parent:
-        # store test results for each phase ("setup", "call", "teardown") of each test
-        # within module-scope
-        item.parent.stash.setdefault(
-            phase_report_key, cast(Dict[str, CollectReport], {})
-        )[f"{report.nodeid}_{report.when}"] = report
+        if report.failed:
+            # store test results for each phase ("setup", "call", "teardown") of each test
+            # within module-scope
+            item.parent.stash.setdefault(
+                phase_report_key, cast(Dict[str, CollectReport], {})
+            )[f"{report.nodeid}_{report.when}"] = report
 
     return report
 
@@ -47,7 +48,7 @@ def privoxy_blocklist() -> str:
 
 
 @pytest.fixture(scope="module")
-def start_privoxy(request) -> Generator[bool, None, None]:
+def start_privoxy(request: pytest.FixtureRequest) -> Generator[bool, None, None]:
     """Test start of privoxy."""
     run = Daemon(
         script_name="/usr/bin/sudo",
@@ -55,18 +56,14 @@ def start_privoxy(request) -> Generator[bool, None, None]:
         cwd="/etc/privoxy",
         start_timeout=10,
         check_ports=[8118],
+        slow_stop=False,
     )
     run.start()
     yield run.is_running()
     run_result = run.terminate()
     # request.node is an "module" because we use the "module" scope
-    report = request.node.stash[phase_report_key]
-    failed = 0
-    for node in report:
-        node_report = report[node]
-        if node_report.failed:
-            failed += 1
-    if failed > 0:
+    node = request.node
+    if (phase_report_key in node.stash) and len(node.stash[phase_report_key]) > 0:
         print(
             f"\n\nprivoxy-results\n  stdout:\n{run_result.stdout}\n  stderr:\n{run_result.stderr}"
         )
