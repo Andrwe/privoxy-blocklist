@@ -22,7 +22,7 @@ def debug_enabled() -> bool:
     return (
         os.environ.get("DEBUG", None) is not None
         or os.environ.get("RUNNER_DEBUG", None) in [1, "1"]
-        or os.environ.get("ACTIONS_RUNNER_DEBUG", None) in [True, "true"]
+        or os.environ.get("ACTIONS_STEP_DEBUG", None) in [True, "true"]
     )
 
 
