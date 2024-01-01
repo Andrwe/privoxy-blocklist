@@ -13,7 +13,7 @@ def test_config_generator(shell, privoxy_blocklist) -> None:
     if config.exists():
         config.unlink()
     ret = shell.run(privoxy_blocklist)
-    assert ret.returncode == 1
+    assert ret.returncode == 2
     assert "Creating default one and exiting" in ret.stdout
     assert config.exists()
 
@@ -24,7 +24,7 @@ def test_custom_config_generator(shell, tmp_path, privoxy_blocklist) -> None:
     if config.exists():
         config.unlink()
     ret = shell.run(privoxy_blocklist, "-c", str(config))
-    assert ret.returncode == 1
+    assert ret.returncode == 2
     assert "Creating default one and exiting" in ret.stdout
     assert config.exists()
 
@@ -49,9 +49,13 @@ def test_request_success(start_privoxy, supported_schemes) -> None:
 
 def test_request_block_url(start_privoxy, supported_schemes) -> None:
     """Test URLs blocked by privoxy due to easylist."""
-    # FIXME: see https://github.com/Andrwe/privoxy-blocklist/issues/7
+    urls = [
+        "andrwe.org/ads/",
+        "andrwe.jp/ads/",
+        "pubfeed.linkby.com",
+        f"s3.{'a'*6}.amazonaws.com/{'0123abcd'*6}/{'ab,12'*2}/",
+    ]
     urls = ["andrwe.org/ads/", "andrwe.jp/ads/", "pubfeed.linkby.com"]
-    urls = ["andrwe.org/ads/", "andrwe.jp/ads/"]
     run_requests(start_privoxy, supported_schemes, urls, [403])
 
 

@@ -117,7 +117,7 @@ TMPDIR="/tmp/\${TMPNAME}"
 #    3 = incredibly loud (function debugging)
 DBG=0
 EOF
-        exit 1
+        exit 2
     fi
 
     if [[ ! -r "${SCRIPTCONF}" ]]; then
@@ -125,8 +125,10 @@ EOF
     fi
 
     # load script config
+    _dbg="${DBG:-0}"
     # shellcheck disable=SC1090
     source "${SCRIPTCONF}"
+    DBG="${_dbg}"
     # load privoxy config
     # shellcheck disable=SC1090
     if [[ -r "${INIT_CONF}" ]]; then
@@ -183,6 +185,14 @@ function main() {
     for url in "${URLS[@]}"; do
         debug "Processing ${url} ...\n" 0
         file="${TMPDIR}/$(basename "${url}")"
+        address_file="${TMPDIR}/$(basename "${url}").address"
+        address_except_file="${TMPDIR}/$(basename "${url}").address_except"
+        url_file="${TMPDIR}/$(basename "${url}").url"
+        url_except_file="${TMPDIR}/$(basename "${url}").url_except"
+        domain_name_file="${TMPDIR}/$(basename "${url}").domain"
+        domain_name_except_file="${TMPDIR}/$(basename "${url}").domain_except"
+        regex_file="${TMPDIR}/$(basename "${url}").regex"
+        regex_except_file="${TMPDIR}/$(basename "${url}").regex_except"
         actionfile=${file%\.*}.script.action
         filterfile=${file%\.*}.script.filter
         list="$(basename "${file%\.*}")"
@@ -197,11 +207,29 @@ function main() {
             continue
         fi
 
+        # remove comments
+        sed -i '/^!.*/d;1,1 d' "${file}"
+        set +e
+        # generate rule based files
+        ## domain-name block
+        grep -E '^\|\|.*' "${file}" > "${domain_name_file}"
+        grep -E '^@@\|\|.*' "${file}" > "${domain_name_except_file}"
+        ## exact address block
+        grep -E '^\|[^|].*\|' "${file}" > "${address_file}"
+        grep -E '^@@\|[^|].*\|' "${file}" > "${address_except_file}"
+        ## url block
+        grep '^/[^^]' "${file}" > "${url_file}"
+        grep '^@@/[^^]' "${file}" > "${url_except_file}"
+        ## regex block
+        grep '^/^' "${file}" > "${regex_file}"
+        grep '^@@/^' "${file}" > "${regex_except_file}"
+        set -e
+
         # convert AdblockPlus list to Privoxy list
         # blacklist of urls
         debug "Creating actionfile for ${list} ..." 1
         echo -e "{ +block{${list}} }" > "${actionfile}"
-        sed '/^!.*/d;1,1 d;/^@@.*/d;/\$.*/d;/#/d;s/\./\\./g;s/\?/\\?/g;s/\*/.*/g;s/(/\\(/g;s/)/\\)/g;s/\[/\\[/g;s/\]/\\]/g;s/\^/[\/\&:\?=_]/g;s/^||/\./g;s/^|/^/g;s/|$/\$/g;/|/d' "${file}" >> "${actionfile}"
+        sed '/\$.*/d;/#/d;s/\?/\\?/g;s/\*/.*/g;s/(/\\(/g;s/)/\\)/g;s/\[/\\[/g;s/\]/\\]/g;s/\^$//g;s/^||/\./g;s/^|/^/g;s/|$/\$/g;/|/d' "${domain_name_file}" >> "${actionfile}"
 
         debug "... creating filterfile for ${list} ..." 1
         echo "FILTER: ${list} Tag filter of ${list}" > "${filterfile}"
@@ -238,7 +266,7 @@ function main() {
         debug "... creating and adding whitlist for urls ..." 1
         # whitelist of urls
         echo "{ -block }" >> "${actionfile}"
-        sed '/^@@.*/!d;s/^@@//g;/\$.*/d;/#/d;s/\./\\./g;s/\?/\\?/g;s/\*/.*/g;s/(/\\(/g;s/)/\\)/g;s/\[/\\[/g;s/\]/\\]/g;s/\^/[\/\&:\?=_]/g;s/^||/\./g;s/^|/^/g;s/|$/\$/g;/|/d' "${file}" >> "${actionfile}"
+        sed 's/^@@//g;/\$.*/d;/#/d;s/\./\\./g;s/\?/\\?/g;s/\*/.*/g;s/(/\\(/g;s/)/\\)/g;s/\[/\\[/g;s/\]/\\]/g;s/\^/[\/\&:\?=_]/g;s/^||/\./g;s/^|/^/g;s/|$/\$/g;/|/d' "${domain_name_except_file}" >> "${actionfile}"
         debug "... created and added whitelist - creating and adding image handler ..." 1
         # whitelist of image urls
         echo "{ -block +handle-as-image }" >> "${actionfile}"
@@ -340,9 +368,10 @@ while getopts ":c:hrqv:" opt; do
     esac
 done
 
+prepare
+
 trap 'rm -fr "${TMPDIR}";exit' INT TERM EXIT
 
-prepare
 lock
 debug "URL-List: ${URLS}\nPrivoxy-Configdir: ${PRIVOXY_DIR}\nTemporary directory: ${TMPDIR}" 2
 "${method}"
