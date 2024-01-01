@@ -1,6 +1,9 @@
 ---
 # yamllint disable rule:line-length
 name: "Test Suite"
+env:
+  ACTIONS_STEP_DEBUG: ${{ vars.ACTIONS_STEP_DEBUG }}
+  RUNNER_DEBUG: ${{ runner.debug }}
 
 "on":
   push:

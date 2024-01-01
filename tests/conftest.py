@@ -50,9 +50,26 @@ def privoxy_blocklist() -> str:
 @pytest.fixture(scope="module")
 def start_privoxy(request: pytest.FixtureRequest) -> Generator[bool, None, None]:
     """Test start of privoxy."""
+    if os.environ.get("RUNNER_DEBUG", None) or os.environ.get(
+        "ACTIONS_RUNNER_DEBUG", None
+    ):
+        for env in ["USER", "UID", "PWD"]:
+            print(env, ": ", os.environ.get(env))
+        for path in [
+            "/etc/privoxy",
+            "/etc/privoxy/CA",
+            "/etc/privoxy/CA/certs",
+            "/etc/privoxy/CA/cakey.pem",
+            "/etc/privoxy/CA/cacert.crt",
+        ]:
+            path_obj = Path(path)
+            if not path_obj.exists():
+                print(path, " does not exist. ----------------")
+                continue
+            print(path_obj.stat().st_mode)
     run = Daemon(
         script_name="/usr/sbin/privoxy",
-        base_script_args=["--no-daemon"],
+        base_script_args=["--no-daemon", "--user", "root"],
         cwd="/etc/privoxy",
         start_timeout=10,
         check_ports=[8118],
