@@ -14,6 +14,18 @@ from pytestshellutils.shell import Daemon
 phase_report_key = StashKey[Dict[str, CollectReport]]()
 
 
+def debug_enabled() -> bool:
+    """Check if debugging is enabled."""
+    # RUNNER_DEBUG = set when "debug logging" activated
+    # ACTIONS_RUNNER_DEBUG = set via repository variable
+    # DEBUG = custom environment variable
+    return (
+        os.environ.get("DEBUG", None) is not None
+        or os.environ.get("RUNNER_DEBUG", None) in [1, "1"]
+        or os.environ.get("ACTIONS_RUNNER_DEBUG", None) in [True, "true"]
+    )
+
+
 # based on
 # https://docs.pytest.org/en/latest/example/simple.html#making-test-result-information-available-in-fixtures
 @pytest.hookimpl(wrapper=True, tryfirst=True)
@@ -50,9 +62,8 @@ def privoxy_blocklist() -> str:
 @pytest.fixture(scope="module")
 def start_privoxy(request: pytest.FixtureRequest) -> Generator[bool, None, None]:
     """Test start of privoxy."""
-    if os.environ.get("RUNNER_DEBUG", None) or os.environ.get(
-        "ACTIONS_RUNNER_DEBUG", None
-    ):
+    print("debugging: ", debug_enabled())
+    if debug_enabled():
         for env in ["USER", "UID", "PWD"]:
             print(env, ": ", os.environ.get(env))
         for path in [
