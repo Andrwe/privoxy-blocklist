@@ -5,9 +5,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      time: 12:00
+      time: "12:00"
   - package-ecosystem: "pip"
     directory: "/tests"
     schedule:
       interval: "weekly"
-      time: 12:00
+      time: "12:00"
