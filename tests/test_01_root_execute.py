@@ -2,7 +2,7 @@
 
 
 from pathlib import Path
-from shutil import which
+from shutil import copyfile, copymode, which
 
 import requests
 
@@ -27,6 +27,23 @@ def test_custom_config_generator(shell, tmp_path, privoxy_blocklist) -> None:
     assert ret.returncode == 2
     assert "Creating default one and exiting" in ret.stdout
     assert config.exists()
+
+
+def test_version_option(shell, tmp_path, privoxy_blocklist) -> None:
+    """Test version option."""
+    ret = shell.run(privoxy_blocklist, "-V")
+    assert ret.returncode == 0
+    assert ret.stdout == "Version: <main>\n"
+    tmp_script = Path(f"{tmp_path}/privoxy-blocklist.sh")
+    if tmp_script.exists():
+        tmp_script.unlink()
+    cur_script = Path(privoxy_blocklist)
+    copyfile(cur_script, tmp_script)
+    copymode(cur_script, tmp_script)
+    ret = shell.run("sed", "-i", "s/<main>/0.0.1/", str(tmp_script))
+    ret = shell.run(str(tmp_script), "-V")
+    assert ret.returncode == 0
+    assert ret.stdout == "Version: 0.0.1\n"
 
 
 def test_next_run(shell, privoxy_blocklist) -> None:

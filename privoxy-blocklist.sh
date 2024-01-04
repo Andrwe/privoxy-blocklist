@@ -342,7 +342,7 @@ VERBOSE=()
 method="main"
 
 # loop for options
-while getopts ":c:hrqv:" opt; do
+while getopts ":c:hrqv:V" opt; do
     case "${opt}" in
         "c")
             SCRIPTCONF="${OPTARG}"
@@ -356,6 +356,11 @@ while getopts ":c:hrqv:" opt; do
             ;;
         "r")
             method="remove"
+            ;;
+        "V")
+            # <main> is replaced by release process
+            echo "Version: <main>"
+            exit 0
             ;;
         ":")
             echo "${TMPNAME}: -${OPTARG} requires an argument" >&2
