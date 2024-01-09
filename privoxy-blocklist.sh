@@ -37,16 +37,34 @@ DEPENDS=('privoxy' 'sed' 'grep' 'bash' 'wget')
 ######################################################################
 
 function usage() {
-    echo "${TMPNAME:-this} is a script to convert AdBlockPlus-lists into Privoxy-lists and install them."
+    get_config_path
+    echo "${TMPNAME:-This} is a script to convert AdBlockPlus-lists into Privoxy-lists and install them."
     echo " "
     echo "Options:"
     echo "      -h:    Show this help."
-    echo "      -c:    Path to script configuration file. (default = OS specific)"
+    echo "      -c:    Path to script configuration file. (default = ${SCRIPTCONF} - OS specific)"
     echo "      -q:    Don't give any output."
     echo "      -v 1:  Enable verbosity 1. Show a little bit more output."
     echo "      -v 2:  Enable verbosity 2. Show a lot more output."
     echo "      -v 3:  Enable verbosity 3. Show all possible output and don't delete temporary files.(For debugging only!!)"
     echo "      -r:    Remove all lists build by this script."
+}
+
+function get_config_path() {
+    if [ -z "${SCRIPTCONF:-}" ]; then
+        # script config-file
+        case "${OS}" in
+            "Darwin")
+                SCRIPTCONF="/usr/local/etc/privoxy-blocklist.conf"
+                ;;
+            *)
+                SCRIPTCONF="/etc/privoxy-blocklist.conf"
+                ;;
+        esac
+        if [ -f "/etc/conf.d/privoxy-blacklist" ]; then
+            SCRIPTCONF="/etc/conf.d/privoxy-blacklist"
+        fi
+    fi
 }
 
 function prepare() {
@@ -67,18 +85,7 @@ function prepare() {
     OS="$(uname)"
 
     if [ -z "${SCRIPTCONF:-}" ]; then
-        # script config-file
-        case "${OS}" in
-            "Darwin")
-                SCRIPTCONF="/usr/local/etc/privoxy-blocklist.conf"
-                ;;
-            *)
-                SCRIPTCONF="/etc/privoxy-blocklist.conf"
-                ;;
-        esac
-        if [ -f "/etc/conf.d/privoxy-blacklist" ]; then
-            SCRIPTCONF="/etc/conf.d/privoxy-blacklist"
-        fi
+        get_config_path
     fi
 
     if [[ ! -d "$(dirname "${SCRIPTCONF}")" ]]; then
@@ -124,14 +131,14 @@ EOF
         debug "Can't read ${SCRIPTCONF}. Permission denied." -1
     fi
 
-    # load script config
-    _dbg="${DBG:-0}"
     # shellcheck disable=SC1090
     source "${SCRIPTCONF}"
-    DBG="${_dbg}"
+    if [ -n "${OPT_DBG:-}" ]; then
+        DBG="${OPT_DBG}"
+    fi
     # load privoxy config
     # shellcheck disable=SC1090
-    if [[ -r "${INIT_CONF}" ]]; then
+    if [[ -r "${INIT_CONF:-no-init-conf}" ]]; then
         source "${INIT_CONF}"
     fi
 
@@ -203,8 +210,7 @@ function main() {
         debug "$(cat "${TMPDIR}/wget-${url//\//#}.log")" 2
         debug ".. downloading done." 0
         if ! grep -qE '^.*\[Adblock.*\].*$' "${file}"; then
-            echo "The list recieved from ${url} isn't an AdblockPlus list. Skipped"
-            continue
+            info "The list recieved from ${url} does not contain AdblockPlus list header. Try to process anyway."
         fi
 
         # remove comments
@@ -348,11 +354,11 @@ while getopts ":c:hrqv:V" opt; do
             SCRIPTCONF="${OPTARG}"
             ;;
         "v")
-            DBG="${OPTARG}"
+            OPT_DBG="${OPTARG}"
             VERBOSE=("-v")
             ;;
         "q")
-            DBG=-1
+            OPT_DBG=-1
             ;;
         "r")
             method="remove"

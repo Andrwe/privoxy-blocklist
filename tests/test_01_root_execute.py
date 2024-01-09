@@ -76,6 +76,93 @@ def test_request_block_url(start_privoxy, supported_schemes) -> None:
     run_requests(start_privoxy, supported_schemes, urls, [403])
 
 
+def test_predefined_custom_config_generator(shell, privoxy_blocklist) -> None:
+    """Run tests for all pre-defined configs."""
+    checks = {
+        "url_extended_config.conf": [
+            (
+                check_in,
+                "Processing https://raw.githubusercontent.com/easylist/easylist/master/"
+                "easylist/easylist_allowlist_general_hide.txt",
+            ),
+            (
+                check_in,
+                "Processing https://easylist-downloads.adblockplus.org/easylistgermany.txt",
+            ),
+            (
+                check_in,
+                "The list recieved from https://raw.githubusercontent.com/easylist/easylist/master"
+                "/easylist/easylist_allowlist_general_hide.txt does not contain AdblockPlus list "
+                "header. Try to process anyway.",
+            ),
+            (
+                check_not_in,
+                "created and added image handler",
+            ),
+        ],
+        "debugging.conf": [
+            (
+                check_in,
+                "Processing https://easylist-downloads.adblockplus.org/easylistgermany.txt",
+            ),
+            (
+                check_not_in,
+                "does not contain AdblockPlus list header.",
+            ),
+            (
+                check_in,
+                "‘/tmp/privoxy-blocklist.sh/easylist.txt’ saved",
+            ),
+            (
+                check_in,
+                "created and added image handler",
+            ),
+        ],
+    }
+    test_config_dir = Path(__file__).parent / "configs"
+    for config in test_config_dir.iterdir():
+        if not config.is_file():
+            continue
+        ret = shell.run(privoxy_blocklist, "-c", str(config))
+        assert ret.returncode == 0
+        assert check_not_in("Creating default one and exiting", ret.stdout)
+        for check in checks.get(config.name, []):
+            assert check[0](check[1], ret.stdout)
+        assert config.exists()
+
+
+# must be last test as it will uninstall dependencies and check error handling
+def test_missing_deps(shell, privoxy_blocklist) -> None:
+    """Test error when dependency is missing."""
+    if which("apk"):
+        ret_pkg = shell.run("apk", "del", "privoxy")
+    elif which("apt-get"):
+        ret_pkg = shell.run(
+            "apt-get",
+            "remove",
+            "--yes",
+            "privoxy",
+            env={"DEBIAN_FRONTEND": "noninteractive"},
+        )
+    assert ret_pkg.returncode == 0
+    ret_script = shell.run(privoxy_blocklist)
+    assert ret_script.returncode == 1
+    assert "Please install the package providing" in ret_script.stderr
+
+
+# Heloer functions
+
+
+def check_in(needle: str, haystack: str) -> bool:
+    """Check given haystack for given string."""
+    return needle in haystack
+
+
+def check_not_in(needle: str, haystack: str) -> bool:
+    """Check that given string is not in given text."""
+    return needle not in haystack
+
+
 def run_requests(
     start_privoxy, supported_schemes, urls: list[str], expected_code: list[int]
 ) -> None:
@@ -101,22 +188,3 @@ def run_request(
     # run assert here to see affected URL in assertion
     assert resp.status_code in expected_code
     return resp
-
-
-# must be last test as it will uninstall dependencies and check error handling
-def test_missing_deps(shell, privoxy_blocklist) -> None:
-    """Test error when dependency is missing."""
-    if which("apk"):
-        ret_pkg = shell.run("apk", "del", "privoxy")
-    elif which("apt-get"):
-        ret_pkg = shell.run(
-            "apt-get",
-            "remove",
-            "--yes",
-            "privoxy",
-            env={"DEBIAN_FRONTEND": "noninteractive"},
-        )
-    assert ret_pkg.returncode == 0
-    ret_script = shell.run(privoxy_blocklist)
-    assert ret_script.returncode == 1
-    assert "Please install the package providing" in ret_script.stderr
