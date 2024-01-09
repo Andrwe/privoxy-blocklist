@@ -26,7 +26,7 @@ while getopts ":o:r" opt; do
 done
 
 img_tag="privoxy-blocklist-test:${os}"
-dockerfile="tests/Dockerfile_${os}"
+dockerfile="${SCRIPT_DIR}/Dockerfile_${os}"
 pytest_cache="pytest_cache_${os}"
 
 if ! [ -f "${dockerfile}" ]; then
