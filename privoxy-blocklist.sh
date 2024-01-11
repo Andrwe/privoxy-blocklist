@@ -69,7 +69,7 @@ function get_config_path() {
 
 function prepare() {
     if [ ${UID} -ne 0 ]; then
-        error -e "Root privileges needed. Exit.\n"
+        error "Root privileges needed. Exit."
         usage
         exit 1
     fi
@@ -81,8 +81,6 @@ function prepare() {
             exit 1
         fi
     done
-
-    OS="$(uname)"
 
     if [ -z "${SCRIPTCONF:-}" ]; then
         get_config_path
@@ -128,7 +126,7 @@ EOF
     fi
 
     if [[ ! -r "${SCRIPTCONF}" ]]; then
-        debug "Can't read ${SCRIPTCONF}. Permission denied." -1
+        debug -1 "Can't read ${SCRIPTCONF}. Permission denied."
     fi
 
     # shellcheck disable=SC1090
@@ -157,8 +155,7 @@ EOF
                 PRIVOXY_CONF="/etc/privoxy/config"
                 ;;
         esac
-        PRIVOXY_CONF="/etc/privoxy/config"
-        info "\$PRIVOXY_CONF isn't set, falling back to '/etc/privoxy/config'"
+        info "\$PRIVOXY_CONF isn't set, falling back to '${PRIVOXY_CONF}'"
     fi
     if [[ -z "${PRIVOXY_USER:-}" ]]; then
         PRIVOXY_USER="privoxy"
@@ -174,8 +171,14 @@ EOF
 }
 
 function debug() {
-    if [ "${DBG}" -ge "${2}" ]; then
-        echo -e "${1}"
+    local expected_level="${1}"
+    shift 1
+    if [ "${DBG}" -ge "${expected_level}" ]; then
+        if [ "${expected_level}" -eq 0 ]; then
+            info "${@}"
+        else
+            printf '%s\n' "${@}"
+        fi
     fi
 }
 
@@ -190,7 +193,7 @@ function info() {
 # shellcheck disable=SC2317
 function main() {
     for url in "${URLS[@]}"; do
-        debug "Processing ${url} ...\n" 0
+        debug 0 "Processing ${url} ..."
         file="${TMPDIR}/$(basename "${url}")"
         address_file="${TMPDIR}/$(basename "${url}").address"
         address_except_file="${TMPDIR}/$(basename "${url}").address_except"
@@ -205,10 +208,10 @@ function main() {
         list="$(basename "${file%\.*}")"
 
         # download list
-        debug "Downloading ${url} ..." 0
+        debug 0 "Downloading ${url} ..."
         wget -t 3 --no-check-certificate -O "${file}" "${url}" > "${TMPDIR}/wget-${url//\//#}.log" 2>&1
-        debug "$(cat "${TMPDIR}/wget-${url//\//#}.log")" 2
-        debug ".. downloading done." 0
+        debug 2 "$(cat "${TMPDIR}/wget-${url//\//#}.log")"
+        debug 0 ".. downloading done."
         if ! grep -qE '^.*\[Adblock.*\].*$' "${file}"; then
             info "The list recieved from ${url} does not contain AdblockPlus list header. Try to process anyway."
         fi
@@ -233,76 +236,76 @@ function main() {
 
         # convert AdblockPlus list to Privoxy list
         # blacklist of urls
-        debug "Creating actionfile for ${list} ..." 1
+        debug 1 "Creating actionfile for ${list} ..."
         echo -e "{ +block{${list}} }" > "${actionfile}"
         sed '/\$.*/d;/#/d;s/\?/\\?/g;s/\*/.*/g;s/(/\\(/g;s/)/\\)/g;s/\[/\\[/g;s/\]/\\]/g;s/\^$//g;s/^||/\./g;s/^|/^/g;s/|$/\$/g;/|/d' "${domain_name_file}" >> "${actionfile}"
 
-        debug "... creating filterfile for ${list} ..." 1
+        debug 1 "... creating filterfile for ${list} ..."
         echo "FILTER: ${list} Tag filter of ${list}" > "${filterfile}"
         # set filter for html elements
         sed '/^#/!d;s/^##//g;s/^#\(.*\)\[.*\]\[.*\]*/s@<([a-zA-Z0-9]+)\\s+.*id=.?\1.*>.*<\/\\1>@@g/g;s/^#\(.*\)/s@<([a-zA-Z0-9]+)\\s+.*id=.?\1.*>.*<\/\\1>@@g/g;s/^\.\(.*\)/s@<([a-zA-Z0-9]+)\\s+.*class=.?\1.*>.*<\/\\1>@@g/g;s/^a\[\(.*\)\]/s@<a.*\1.*>.*<\/a>@@g/g;s/^\([a-zA-Z0-9]*\)\.\(.*\)\[.*\]\[.*\]*/s@<\1.*class=.?\2.*>.*<\/\1>@@g/g;s/^\([a-zA-Z0-9]*\)#\(.*\):.*[\:[^:]]*[^:]*/s@<\1.*id=.?\2.*>.*<\/\1>@@g/g;s/^\([a-zA-Z0-9]*\)#\(.*\)/s@<\1.*id=.?\2.*>.*<\/\1>@@g/g;s/^\[\([a-zA-Z]*\).=\(.*\)\]/s@\1^=\2>@@g/g;s/\^/[\/\&:\?=_]/g;s/\.\([a-zA-Z0-9]\)/\\.\1/g' "${file}" >> "${filterfile}"
-        debug "... filterfile created - adding filterfile to actionfile ..." 1
+        debug 1 "... filterfile created - adding filterfile to actionfile ..."
         echo "{ +filter{${list}} }" >> "${actionfile}"
         echo "*" >> "${actionfile}"
-        debug "... filterfile added ..." 1
+        debug 1 "... filterfile added ..."
 
         # create domain based whitelist
 
         # create domain based blacklist
         #    domains=$(sed '/^#/d;/#/!d;s/,~/,\*/g;s/~/;:\*/g;s/^\([a-zA-Z]\)/;:\1/g' ${file})
-        #    [ -n "${domains}" ] && debug "... creating domainbased filterfiles ..." 1
-        #    debug "Found Domains: ${domains}." 2
+        #    [ -n "${domains}" ] && debug 1 "... creating domainbased filterfiles ..."
+        #    debug 2 "Found Domains: ${domains}."
         #    ifs=$IFS
         #    IFS=";:"
         #    for domain in ${domains}
         #    do
         #      dns=$(echo ${domain} | awk -F ',' '{print $1}' | awk -F '#' '{print $1}')
-        #      debug "Modifying line: ${domain}" 2
-        #      debug "   ... creating filterfile for ${dns} ..." 1
+        #      debug 2 "Modifying line: ${domain}"
+        #      debug 1 "   ... creating filterfile for ${dns} ..."
         #      sed '' ${file} > ${file%\.*}-${dns%~}.script.filter
-        #      debug "   ... filterfile created ..." 1
-        #      debug "   ... adding filterfile for ${dns} to actionfile ..." 1
+        #      debug 1 "   ... filterfile created ..."
+        #      debug 1 "   ... adding filterfile for ${dns} to actionfile ..."
         #      echo "{ +filter{${list}-${dns}} }" >> ${actionfile}
         #      echo "${dns}" >> ${actionfile}
-        #      debug "   ... filterfile added ..." 1
+        #      debug 1 "   ... filterfile added ..."
         #    done
         #    IFS=${ifs}
-        #    debug "... all domainbased filterfiles created ..." 1
+        #    debug 1 "... all domainbased filterfiles created ..."
 
-        debug "... creating and adding whitlist for urls ..." 1
+        debug 1 "... creating and adding whitlist for urls ..."
         # whitelist of urls
         echo "{ -block }" >> "${actionfile}"
         sed 's/^@@//g;/\$.*/d;/#/d;s/\./\\./g;s/\?/\\?/g;s/\*/.*/g;s/(/\\(/g;s/)/\\)/g;s/\[/\\[/g;s/\]/\\]/g;s/\^/[\/\&:\?=_]/g;s/^||/\./g;s/^|/^/g;s/|$/\$/g;/|/d' "${domain_name_except_file}" >> "${actionfile}"
-        debug "... created and added whitelist - creating and adding image handler ..." 1
+        debug 1 "... created and added whitelist - creating and adding image handler ..."
         # whitelist of image urls
         echo "{ -block +handle-as-image }" >> "${actionfile}"
         sed '/^@@.*/!d;s/^@@//g;/\$.*image.*/!d;s/\$.*image.*//g;/#/d;s/\./\\./g;s/\?/\\?/g;s/\*/.*/g;s/(/\\(/g;s/)/\\)/g;s/\[/\\[/g;s/\]/\\]/g;s/\^/[\/\&:\?=_]/g;s/^||/\./g;s/^|/^/g;s/|$/\$/g;/|/d' "${file}" >> "${actionfile}"
-        debug "... created and added image handler ..." 1
-        debug "... created actionfile for ${list}." 1
+        debug 1 "... created and added image handler ..."
+        debug 1 "... created actionfile for ${list}."
 
         # install Privoxy actionsfile
         install -o "${PRIVOXY_USER}" -g "${PRIVOXY_GROUP}" "${VERBOSE[@]}" "${actionfile}" "${PRIVOXY_DIR}"
         if ! grep -q "$(basename "${actionfile}")" "${PRIVOXY_CONF}"; then
-            debug "\nModifying ${PRIVOXY_CONF} ..." 0
+            debug 0 "Modifying ${PRIVOXY_CONF} ..."
             sed "s/^actionsfile user\.action/actionsfile $(basename "${actionfile}")\nactionsfile user.action/" "${PRIVOXY_CONF}" > "${TMPDIR}/config"
-            debug "... modification done.\n" 0
-            debug "Installing new config ..." 0
+            debug 0 "... modification done."
+            debug 0 "Installing new config ..."
             install -o "${PRIVOXY_USER}" -g "${PRIVOXY_GROUP}" "${VERBOSE[@]}" "${TMPDIR}/config" "${PRIVOXY_CONF}"
-            debug "... installation done\n" 0
+            debug 0 "... installation done"
         fi
 
         # install Privoxy filterfile
         install -o "${PRIVOXY_USER}" -g "${PRIVOXY_GROUP}" "${VERBOSE[@]}" "${filterfile}" "${PRIVOXY_DIR}"
         if ! grep -q "$(basename "${filterfile}")" "${PRIVOXY_CONF}"; then
-            debug "\nModifying ${PRIVOXY_CONF} ..." 0
+            debug 0 "Modifying ${PRIVOXY_CONF} ..."
             sed "s/^\(#*\)filterfile user\.filter/filterfile $(basename "${filterfile}")\n\1filterfile user.filter/" "${PRIVOXY_CONF}" > "${TMPDIR}/config"
-            debug "... modification done.\n" 0
-            debug "Installing new config ..." 0
+            debug 0 "... modification done."
+            debug 0 "Installing new config ..."
             install -o "${PRIVOXY_USER}" -g "${PRIVOXY_GROUP}" "${VERBOSE[@]}" "${TMPDIR}/config" "${PRIVOXY_CONF}"
-            debug "... installation done\n" 0
+            debug 0 "... installation done"
         fi
 
-        debug "... ${url} installed successfully.\n" 0
+        debug 0 "... ${url} installed successfully."
     done
 }
 
@@ -319,9 +322,9 @@ function lock() {
             echo "An instance of ${TMPNAME} is already running. Exit"
             exit 1
         fi
-        debug "Found dead lock file." 0
+        debug 0 "Found dead lock file."
         rm -f "${PID_FILE}"
-        debug "File removed." 0
+        debug 0 "File removed."
     fi
 
     # safe PID in lock-file
@@ -346,6 +349,7 @@ function remove() {
 
 VERBOSE=()
 method="main"
+OS="$(uname)"
 
 # loop for options
 while getopts ":c:hrqv:V" opt; do
@@ -384,7 +388,9 @@ prepare
 trap 'rm -fr "${TMPDIR}";exit' INT TERM EXIT
 
 lock
-debug "URL-List: ${URLS}\nPrivoxy-Configdir: ${PRIVOXY_DIR}\nTemporary directory: ${TMPDIR}" 2
+debug 2 "URL-List: ${URLS[*]}"
+debug 2 "Privoxy-Configdir: ${PRIVOXY_DIR}"
+debug 2 "Temporary directory: ${TMPDIR}"
 "${method}"
 
 # restore default exit command

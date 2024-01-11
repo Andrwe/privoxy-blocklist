@@ -150,6 +150,10 @@ def test_missing_deps(shell, privoxy_blocklist) -> None:
     assert "Please install the package providing" in ret_script.stderr
 
 
+def test_privoxy_runtime_log() -> None:
+    """NOOP function to support checking privoxy logs during tear-down."""
+
+
 # Heloer functions
 
 

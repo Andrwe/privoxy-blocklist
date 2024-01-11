@@ -4,14 +4,14 @@
 import os
 from pathlib import Path
 from re import search
-from typing import Dict, Generator, Optional, cast
+from typing import Generator, Optional
 
 import pytest
 import requests
-from pytest import CollectReport, StashKey
+from pytest import StashKey
 from pytestshellutils.shell import Daemon
 
-phase_report_key = StashKey[Dict[str, CollectReport]]()
+phase_report_key = StashKey[int]()
 
 
 def debug_enabled() -> bool:
@@ -35,12 +35,12 @@ def pytest_runtest_makereport(item: pytest.Item):
     report = yield
 
     if item.parent:
+        # store test results for each phase ("setup", "call", "teardown") of each test
+        # within module-scope
+        if phase_report_key not in item.parent.stash:
+            item.parent.stash.setdefault(phase_report_key, 0)
         if report.failed:
-            # store test results for each phase ("setup", "call", "teardown") of each test
-            # within module-scope
-            item.parent.stash.setdefault(
-                phase_report_key, cast(Dict[str, CollectReport], {})
-            )[f"{report.nodeid}_{report.when}"] = report
+            item.parent.stash[phase_report_key] += 1
 
     return report
 
@@ -95,12 +95,14 @@ def start_privoxy(request: pytest.FixtureRequest) -> Generator[bool, None, None]
     run.start()
     yield run.is_running()
     run_result = run.terminate()
+    logs = run_result.stdout + run_result.stderr
     # request.node is an "module" because we use the "module" scope
     node = request.node
-    if (phase_report_key in node.stash) and len(node.stash[phase_report_key]) > 0:
-        print(
-            f"\n\nprivoxy-results\n  stdout:\n{run_result.stdout}\n  stderr:\n{run_result.stderr}"
-        )
+    if (
+        (phase_report_key in node.stash) and node.stash[phase_report_key] > 0
+    ) or " Error: " in logs:
+        print(f"\n\nprivoxy-logs\n{logs}")
+    assert " Error: " not in logs
 
 
 @pytest.fixture(scope="module")
