@@ -195,14 +195,15 @@ function main() {
     for url in "${URLS[@]}"; do
         debug 0 "Processing ${url} ..."
         file="${TMPDIR}/$(basename "${url}")"
-        address_file="${TMPDIR}/$(basename "${url}").address"
-        address_except_file="${TMPDIR}/$(basename "${url}").address_except"
-        url_file="${TMPDIR}/$(basename "${url}").url"
-        url_except_file="${TMPDIR}/$(basename "${url}").url_except"
-        domain_name_file="${TMPDIR}/$(basename "${url}").domain"
-        domain_name_except_file="${TMPDIR}/$(basename "${url}").domain_except"
-        regex_file="${TMPDIR}/$(basename "${url}").regex"
-        regex_except_file="${TMPDIR}/$(basename "${url}").regex_except"
+        address_file="${file}.address"
+        address_except_file="${file}.address_except"
+        url_file="${file}.url"
+        url_except_file="${file}.url_except"
+        domain_name_file="${file}.domain"
+        domain_name_except_file="${file}.domain_except"
+        regex_file="${file}.regex"
+        regex_except_file="${file}.regex_except"
+        html_file="${file}.html"
         actionfile=${file%\.*}.script.action
         filterfile=${file%\.*}.script.filter
         list="$(basename "${file%\.*}")"
@@ -232,21 +233,93 @@ function main() {
         ## regex block
         grep '^/^' "${file}" > "${regex_file}"
         grep '^@@/^' "${file}" > "${regex_except_file}"
+        ## html element block
+        grep '^.*##..*' "${file}" > "${html_file}"
         set -e
 
         # convert AdblockPlus list to Privoxy list
         # blacklist of urls
         debug 1 "Creating actionfile for ${list} ..."
-        echo -e "{ +block{${list}} }" > "${actionfile}"
-        sed '/\$.*/d;/#/d;s/\?/\\?/g;s/\*/.*/g;s/(/\\(/g;s/)/\\)/g;s/\[/\\[/g;s/\]/\\]/g;s/\^$//g;s/^||/\./g;s/^|/^/g;s/|$/\$/g;/|/d' "${domain_name_file}" >> "${actionfile}"
+        echo "{ +block{${list}} }" > "${actionfile}"
+        sed '
+        # skip domains with additional filter definition
+        /\$.*/d
+        # skip domains with HTML filter
+        /#/d
+        # replace characters to match Privoxy domain syntax
+        s/\?/\\?/g;s/\*/.*/g;s/(/\\(/g;s/)/\\)/g;s/\[/\\[/g;s/\]/\\]/g
+        # replace marking seperator of Adblock
+        s/\^$//g
+        # replace domain matcher
+        s/^||/\./g
+        ' "${domain_name_file}" >> "${actionfile}"
+        sed '
+        # skip domains with additional filter definition
+        /\$.*/d
+        # skip domains with HTML filter
+        /#/d
+        # replace characters to match Privoxy domain syntax
+        s/\?/\\?/g;s/\*/.*/g;s/(/\\(/g;s/)/\\)/g;s/\[/\\[/g;s/\]/\\]/g
+        # replace marking seperator of Adblock
+        s/\^$//g
+        # handle exact domain matching
+        s/^|\([^|][^|]*\)|/^\1\$/g;s/|$/\$/g
+        ' "${address_file}" >> "${actionfile}"
 
         debug 1 "... creating filterfile for ${list} ..."
         echo "FILTER: ${list} Tag filter of ${list}" > "${filterfile}"
-        # set filter for html elements
-        sed '/^#/!d;s/^##//g;s/^#\(.*\)\[.*\]\[.*\]*/s@<([a-zA-Z0-9]+)\\s+.*id=.?\1.*>.*<\/\\1>@@g/g;s/^#\(.*\)/s@<([a-zA-Z0-9]+)\\s+.*id=.?\1.*>.*<\/\\1>@@g/g;s/^\.\(.*\)/s@<([a-zA-Z0-9]+)\\s+.*class=.?\1.*>.*<\/\\1>@@g/g;s/^a\[\(.*\)\]/s@<a.*\1.*>.*<\/a>@@g/g;s/^\([a-zA-Z0-9]*\)\.\(.*\)\[.*\]\[.*\]*/s@<\1.*class=.?\2.*>.*<\/\1>@@g/g;s/^\([a-zA-Z0-9]*\)#\(.*\):.*[\:[^:]]*[^:]*/s@<\1.*id=.?\2.*>.*<\/\1>@@g/g;s/^\([a-zA-Z0-9]*\)#\(.*\)/s@<\1.*id=.?\2.*>.*<\/\1>@@g/g;s/^\[\([a-zA-Z]*\).=\(.*\)\]/s@\1^=\2>@@g/g;s/\^/[\/\&:\?=_]/g;s/\.\([a-zA-Z0-9]\)/\\.\1/g' "${file}" >> "${filterfile}"
+        debug 1 "... processing 'class'-matches ..."
+        sed '
+        # only process gloabl classes
+        /^##\..*/!d
+        # cleanup
+        s/^##//g
+        # convert classes independent of HTML tag
+        s/^\.\(.*\)/s@<([a-zA-Z0-9]+)\\s+.*class=.?\1.*>.*<\/\\1>@@g/g
+        # convert classes with defined HTML tag
+        s/^\([a-zA-Z0-9]*\)\.\(.*\)\[.*\]\[.*\]*/s@<\1.*class=.?\2.*>.*<\/\1>@@g/g
+        ' "${html_file}" >> "${filterfile}"
+        # FIXME: add class handling with domains
+
+        debug 1 "... processing 'id'-matches ..."
+        sed '
+        # only process gloabl classes
+        /^###.*/!d
+        # cleanup
+        s/^##//g
+        # convert id independent of HTML tag
+        s/^#\(.*\)/s@<.*id=.?\1.*>.*<\/@@g/g
+        # convert id with defined HTML tag and extended selectors
+        s/^\([a-zA-Z0-9][a-zA-Z0-9]*\)#\(.*\):.*[\:[^:]]*[^:]*/s@<\1.*id=.?\2.*>.*<\/\1>@@g/g
+        # convert id with defined HTML tag
+        s/^\([a-zA-Z0-9][a-zA-Z0-9]*\)#\(.*\)/s@<\1.*id=.?\2.*>.*<\/\1>@@g/g
+        ' "${html_file}" >> "${filterfile}"
+        # FIXME: add id handling with domains
+
+        debug 1 "... processing 'attribute'-matches ..."
+        sed '
+        # only process gloabl classes
+        /^##\[.*/!d
+        # cleanup
+        s/^##//g
+        # convert attribute based filters with exact match with exact match
+        s/^\[\([^=^]*\)"*=\(.*\)\]/s@\1=\2>@@g/g
+        # convert attribute based filter with contain match
+        s/^\[\([^=^]*\)"*\*="*\([^"]*\)"*\]/s@\1=".*\2.*">@@g/g
+        # convert attribute based filter with startwith match
+        s/^\[\([^=]*\)"*^="*\([^"]*\)"*\]/s@\1="\2.*">@@g/g
+        # convert attribute based filter with endswith match
+        s/^\[\([^=^]*\)"*\$="*\([^"]*\)"*\]/s@\1=".*\2">@@g/g
+        # convert attribute name-only matches
+        s/^\[\(.*\)"*\]/s@<.*\1.*\/>@@g\ns@<\([^ ]*\) .*\1.*>.*<\/\\1.*>@@g/g
+        # convert dots
+        s/\.\([a-zA-Z0-9]\)/\\.\1/g
+        ' "${html_file}" >> "${filterfile}"
+        # FIXME: add attribute handling with domains
+
         debug 1 "... filterfile created - adding filterfile to actionfile ..."
         echo "{ +filter{${list}} }" >> "${actionfile}"
-        echo "*" >> "${actionfile}"
+        echo ".*" >> "${actionfile}"
         debug 1 "... filterfile added ..."
 
         # create domain based whitelist
