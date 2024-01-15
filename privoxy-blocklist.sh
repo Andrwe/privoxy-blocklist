@@ -267,39 +267,89 @@ function main() {
         ' "${address_file}" >> "${actionfile}"
 
         debug 1 "... creating filterfile for ${list} ..."
-        echo "FILTER: ${list} Tag filter of ${list}" > "${filterfile}"
+        echo "FILTER: ${list}_class_global Tag filter of ${list}" > "${filterfile}"
         debug 1 "... processing 'class'-matches ..."
-        sed '
-        # only process gloabl classes
-        /^##\..*/!d
-        # cleanup
-        s/^##//g
-        # convert classes independent of HTML tag
-        s/^\.\(.*\)/s@<([a-zA-Z0-9]+)\\s+.*class=.?\1.*>.*<\/\\1>@@g/g
-        # convert classes with defined HTML tag
-        s/^\([a-zA-Z0-9]*\)\.\(.*\)\[.*\]\[.*\]*/s@<\1.*class=.?\2.*>.*<\/\1>@@g/g
-        ' "${html_file}" >> "${filterfile}"
+        (
+            lines=()
+            # using while-loop as privoxy cannot handle more than 2000 or-connected strings within one regex
+            sed -e '
+                # only process gloabl class matches
+                /^##\..*/!d
+                # remove all combinations with attribute matching
+                /^##\..*\[.*/d
+                # remove all matches with combinators
+                /^##\..*[>+~ ].*/d
+                # cleanup
+                s/^##\.//g
+                # prepare regex merging
+                s/$/|/
+            ' "${html_file}" | while read -r line; do
+                # number of matches within one rule impacts runtime of each request to modify the content
+                if [ "${#lines[@]}" -lt 1000 ]; then
+                    lines+=("$line")
+                    continue
+                fi
+                # complexity of regex impacts runtime of each request to modify the content
+                # using removal of whole HTML tag as multiple matches with different classes in same element are not possible
+                # printf to inject both quoting characters " and '
+                printf 's@<([a-zA-Z0-9]+)\\s+.*class=[%s][^%s]*(' "\"'" "\"'"
+                # using tr to merge lines because sed-based approachs takes up to 6 MB RAM and >10 seconds during testing
+                printf '%s\n' "${lines[@]}" | sed '$ s/|//' | tr -d '\n'
+                # printf to inject both quoting characters " and '
+                printf ')[^%s]*[%s].*>.*<\/\\1[^>]*>@@g\n' "\"'" "\"'"
+                lines=()
+            done
+        ) >> "${filterfile}"
         # FIXME: add class handling with domains
+        # FIXME: add class handling with combinators
+        # FIXME: add class with defined HTML tag ?
+        # FIXME: add class with cascading
 
+        echo "FILTER: ${list}_id_global Tag filter of ${list}" >> "${filterfile}"
         debug 1 "... processing 'id'-matches ..."
-        sed '
-        # only process gloabl classes
-        /^###.*/!d
-        # cleanup
-        s/^##//g
-        # convert id independent of HTML tag
-        s/^#\(.*\)/s@<.*id=.?\1.*>.*<\/@@g/g
-        # convert id with defined HTML tag and extended selectors
-        s/^\([a-zA-Z0-9][a-zA-Z0-9]*\)#\(.*\):.*[\:[^:]]*[^:]*/s@<\1.*id=.?\2.*>.*<\/\1>@@g/g
-        # convert id with defined HTML tag
-        s/^\([a-zA-Z0-9][a-zA-Z0-9]*\)#\(.*\)/s@<\1.*id=.?\2.*>.*<\/\1>@@g/g
-        ' "${html_file}" >> "${filterfile}"
+        (
+            lines=()
+            # using while-loop as privoxy cannot handle more than 2000 or-connected strings within one regex
+            sed -e '
+                # only process gloabl classes
+                /^###.*/!d
+                # remove all matches with combinators
+                /^###.*[>+~].*/d
+                # cleanup
+                s/^###//g
+                # prepare regex merging
+                s/$/|/
+            ' "${html_file}" | while read -r line; do
+                # number of matches within one rule impacts runtime of each request to modify the content
+                if [ "${#lines[@]}" -lt 1000 ]; then
+                    lines+=("$line")
+                    continue
+                fi
+                # complexity of regex impacts runtime of each request to modify the content
+                # using removal of whole HTML tag as multiple matches with different classes in same element are not possible
+                # printf to inject both quoting characters " and '
+                printf 's@<([a-zA-Z0-9]+)\\s+.*id=[%s](' "\"'"
+                # using tr to merge lines because sed-based approachs takes up to 6 MB RAM and >10 seconds during testing
+                printf '%s\n' "${lines[@]}" | sed '$ s/|//' | tr -d '\n'
+                # printf to inject both quoting characters " and '
+                printf ')[%s].*>.*<\/\\1[^>]*>@@g\n' "\"'"
+                lines=()
+            done
+        ) >> "${filterfile}"
         # FIXME: add id handling with domains
+        # FIXME: add id handling with combinators
+        # FIXME: add id with defined HTML tag:
+        #        s/^\([a-zA-Z0-9][a-zA-Z0-9]*\)#\(.*\):.*[\:[^:]]*[^:]*/s@<\1.*id=.?\2.*>.*<\/\1>@@g/g
+        #        s/^\([a-zA-Z0-9][a-zA-Z0-9]*\)#\(.*\)/s@<\1.*id=.?\2.*>.*<\/\1>@@g/g
+        # FIXME: add id with cascading
 
+        echo "FILTER: ${list}_attribute Tag filter of ${list}" >> "${filterfile}"
         debug 1 "... processing 'attribute'-matches ..."
         sed '
         # only process gloabl classes
         /^##\[.*/!d
+        # remove all matches with combinators
+        /^##\[.*[>+~].*/d
         # cleanup
         s/^##//g
         # convert attribute based filters with exact match with exact match
@@ -316,10 +366,18 @@ function main() {
         s/\.\([a-zA-Z0-9]\)/\\.\1/g
         ' "${html_file}" >> "${filterfile}"
         # FIXME: add attribute handling with domains
+        # FIXME: add attribute handling with combinators
+        # FIXME: add combination of classes and attributes: ##.OUTBRAIN[data-widget-id^="FMS_REELD_"]
 
         debug 1 "... filterfile created - adding filterfile to actionfile ..."
-        echo "{ +filter{${list}} }" >> "${actionfile}"
-        echo ".*" >> "${actionfile}"
+        (
+            echo "{ +filter{${list}_class_global} }"
+            echo "/"
+            echo "{ +filter{${list}_id_global} }"
+            echo "/"
+            echo "{ +filter{${list}_attribute} }"
+            echo "*"
+        ) >> "${actionfile}"
         debug 1 "... filterfile added ..."
 
         # create domain based whitelist
@@ -406,18 +464,18 @@ function lock() {
 
 # shellcheck disable=SC2317
 function remove() {
-            read -rp "Do you really want to remove all build lists?(y/N) " choice
-            if [ "${choice}" != "y" ]; then
-                exit 0
+    read -rp "Do you really want to remove all build lists?(y/N) " choice
+    if [ "${choice}" != "y" ]; then
+        exit 0
     fi
-            if rm -rf "${PRIVOXY_DIR}/"*.script.{action,filter} \
-                && sed '/^actionsfile .*\.script\.action$/d;/^filterfile .*\.script\.filter$/d' -i "${PRIVOXY_CONF}"; then
-                echo "Lists removed."
-                exit 0
+    if rm -rf "${PRIVOXY_DIR}/"*.script.{action,filter} \
+        && sed '/^actionsfile .*\.script\.action$/d;/^filterfile .*\.script\.filter$/d' -i "${PRIVOXY_CONF}"; then
+        echo "Lists removed."
+        exit 0
     fi
-            error "An error occured while removing the lists."
-            error "Please have a look into ${PRIVOXY_DIR} whether there are .script.* files and search for *.script.* in ${PRIVOXY_CONF}."
-            exit 1
+    error "An error occured while removing the lists."
+    error "Please have a look into ${PRIVOXY_DIR} whether there are .script.* files and search for *.script.* in ${PRIVOXY_CONF}."
+    exit 1
 }
 
 VERBOSE=()
