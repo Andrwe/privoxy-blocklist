@@ -26,6 +26,16 @@ def debug_enabled() -> bool:
     )
 
 
+def check_in(needle: str, haystack: str) -> bool:
+    """Check given haystack for given string."""
+    return needle in haystack
+
+
+def check_not_in(needle: str, haystack: str) -> bool:
+    """Check that given string is not in given text."""
+    return needle not in haystack
+
+
 # based on
 # https://docs.pytest.org/en/latest/example/simple.html#making-test-result-information-available-in-fixtures
 @pytest.hookimpl(wrapper=True, tryfirst=True)

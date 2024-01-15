@@ -11,7 +11,6 @@ def test_permissions() -> None:
         ".ci_config/bandit.yml",
         ".ci_config/prospector.yaml",
         ".editorconfig",
-        ".flake8",
         ".github/release.yml",
         ".github/workflows/pytest.yml",
         ".github/workflows/release.yml",
@@ -22,6 +21,7 @@ def test_permissions() -> None:
         "tests/Dockerfile_alpine",
         "tests/Dockerfile_ubuntu",
         "tests/requirements.txt",
+        "tests/setup.cfg",
         "tests/test_00_minimal.py",
         "tests/test_01_root_execute.py",
     ]

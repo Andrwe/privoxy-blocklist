@@ -1,4 +1,5 @@
 pytest
 pytest-durations
+pytest-httpserver
 pytest-shell-utilities
 requests
