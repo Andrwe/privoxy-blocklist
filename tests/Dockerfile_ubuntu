@@ -5,10 +5,12 @@ COPY		helper/install_deps.sh /install_deps.sh
 ENV		DEBIAN_FRONTEND=noninteractive
 RUN		apt-get update \
 		&& apt-get install --no-install-recommends -q --yes \
+			curl \
 			build-essential \
 			python3-pip \
 			python3-dev \
 			sudo \
+			vim \
 		&& pip install --no-cache-dir -qr /requirements.txt \
 		&& rm -f /requirements.txt \
 		&& install -d -o root -g root /pytest_cache \
