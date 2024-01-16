@@ -10,8 +10,28 @@ import pytest
 import requests
 from pytest import StashKey
 from pytestshellutils.shell import Daemon
+from urllib3.util import Url, parse_url
 
 phase_report_key = StashKey[int]()
+
+
+class UrlParsed:
+    """Class to parse and store URL."""
+
+    origin_url: str
+    parsed_url: Url
+    scheme: str
+    scheme_less_url: str
+
+    def __init__(self, url: str):
+        """Initialize object by parsing given URL."""
+        self.origin_url = url
+        self.parsed_url = parse_url(self.origin_url)
+        self.scheme = self.parsed_url.scheme or "http"
+        parsed_port = f":{self.parsed_url.port}" if self.parsed_url.port else ""
+        self.scheme_less_url = (
+            f"{self.parsed_url.host}{parsed_port}{self.parsed_url.request_uri}"
+        )
 
 
 def debug_enabled() -> bool:
@@ -53,6 +73,19 @@ def pytest_runtest_makereport(item: pytest.Item):
             item.parent.stash[phase_report_key] += 1
 
     return report
+
+
+@pytest.fixture
+def webserver(httpserver) -> UrlParsed:
+    """Start HTTP server and return parsed URL object."""
+    with Path(__file__).parent.joinpath("response.html").open(
+        "r", encoding="UTF-8"
+    ) as f_h:
+        response_html = f_h.read()
+    httpserver.expect_request("/").respond_with_data(
+        response_data=response_html, content_type="text/html"
+    )
+    return UrlParsed(httpserver.url_for("/"))
 
 
 @pytest.fixture(scope="module")

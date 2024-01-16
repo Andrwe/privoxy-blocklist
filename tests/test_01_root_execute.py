@@ -7,7 +7,6 @@ from shutil import copyfile, copymode, which
 import config
 import requests
 from conftest import check_in, check_not_in
-from urllib3.util import parse_url
 
 
 def test_config_generator(shell, privoxy_blocklist) -> None:
@@ -69,34 +68,36 @@ def test_request_block_url(start_privoxy, supported_schemes) -> None:
     run_requests(start_privoxy, supported_schemes, config.urls_blocked, [403])
 
 
-def test_removed_content(start_privoxy, httpserver) -> None:
+def test_content_removed(start_privoxy, webserver) -> None:
     """Test filters for removing content."""
-    with Path(__file__).parent.joinpath("response.html").open(
-        "r", encoding="UTF-8"
-    ) as f_h:
-        response_html = f_h.read()
-    httpserver.expect_request("/").respond_with_data(
-        response_data=response_html, content_type="text/html"
-    )
-    parsed_url = parse_url(httpserver.url_for("/"))
-    parsed_port = f":{parsed_url.port}" if parsed_url.port else ""
-    scheme_less_url = f"{parsed_url.host}{parsed_port}{parsed_url.request_uri}"
     response = run_request(
         start_privoxy,
-        scheme=parsed_url.scheme or "http",
-        url=scheme_less_url,
+        scheme=webserver.scheme,
+        url=webserver.scheme_less_url,
         expected_code=[200],
     )
     # expected response
     assert check_in("just-some-test-string-always-present", response.text)
     for needle in config.content_removed:
         # check presence of needle without privoxy
-        assert check_in(needle, requests.get(httpserver.url_for("/"), timeout=10).text)
+        assert check_in(needle, requests.get(webserver.origin_url, timeout=10).text)
         # check presence of needle with privoxy
         assert check_not_in(needle, response.text)
+
+
+def test_content_exists(start_privoxy, webserver) -> None:
+    """Test filters for removing content."""
+    response = run_request(
+        start_privoxy,
+        scheme=webserver.scheme,
+        url=webserver.scheme_less_url,
+        expected_code=[200],
+    )
+    # expected response
+    assert check_in("just-some-test-string-always-present", response.text)
     for needle in config.content_exists:
         # check presence of needle without privoxy
-        assert check_in(needle, requests.get(httpserver.url_for("/"), timeout=10).text)
+        assert check_in(needle, requests.get(webserver.origin_url, timeout=10).text)
         # check presence of needle with privoxy
         assert check_in(needle, response.text)
 

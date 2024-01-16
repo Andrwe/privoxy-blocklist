@@ -13,3 +13,10 @@ bandit:
 
 mypy:
   run: true
+
+pydocstyle:
+  disable:
+    # conflicts with D211
+    - D203
+    # conflicts with D211
+    - D212
