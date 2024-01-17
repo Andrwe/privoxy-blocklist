@@ -6,6 +6,7 @@ content_removed = [
     "ad_970x250",  # class match: https://www.iphoneitalia.com/
     "MyAdsId3",  # id match
     "AdRight2",  # class match with element having multiple classes
+    "data-ad-manager-id",  # attribute match
 ]
 content_exists = [
     "ajlkl",  # should exist, although one element is removed by privoxy

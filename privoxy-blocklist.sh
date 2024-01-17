@@ -204,6 +204,7 @@ function main() {
         regex_file="${file}.regex"
         regex_except_file="${file}.regex_except"
         html_file="${file}.html"
+        html_except_file="${file}.html_except"
         actionfile=${file%\.*}.script.action
         filterfile=${file%\.*}.script.filter
         list="$(basename "${file%\.*}")"
@@ -234,7 +235,8 @@ function main() {
         grep '^/^' "${file}" > "${regex_file}"
         grep '^@@/^' "${file}" > "${regex_except_file}"
         ## html element block
-        grep '^.*##..*' "${file}" > "${html_file}"
+        grep -E '^.*##.+' "${file}" > "${html_file}"
+        grep -E '^.*#@#.+' "${file}" > "${html_except_file}"
         set -e
 
         # convert AdblockPlus list to Privoxy list
@@ -267,9 +269,11 @@ function main() {
         ' "${address_file}" >> "${actionfile}"
 
         debug 1 "... creating filterfile for ${list} ..."
+        debug 1 "... processing global 'class'-matches ..."
         echo "FILTER: ${list}_class_global Tag filter of ${list}" > "${filterfile}"
-        debug 1 "... processing 'class'-matches ..."
         (
+            # allow handling of left-over lines from last while-loop-run
+            shopt -s lastpipe
             lines=()
             # using while-loop as privoxy cannot handle more than 2000 or-connected strings within one regex
             sed -e '
@@ -299,22 +303,38 @@ function main() {
                 printf ')[^%s]*[%s].*>.*<\/\\1[^>]*>@@g\n' "\"'" "\"'"
                 lines=()
             done
+            # process last chunk with less than 1000 entries
+            if [ "${#lines[@]}" -gt 0 ]; then
+                printf 's@<([a-zA-Z0-9]+)\\s+.*class=[%s][^%s]*(' "\"'" "\"'"
+                printf '%s\n' "${lines[@]}" | sed '$ s/|//' | tr -d '\n'
+                printf ')[^%s]*[%s].*>.*<\/\\1[^>]*>@@g\n' "\"'" "\"'"
+            fi
+            shopt -u lastpipe
         ) >> "${filterfile}"
+
+        debug 1 "... registering ${list}_class_global in actionfile ..."
+        (
+            echo "{ +filter{${list}_class_global} }"
+            echo "/"
+        ) >> "${actionfile}"
+        debug 1 "... registered ..."
         # FIXME: add class handling with domains
         # FIXME: add class handling with combinators
         # FIXME: add class with defined HTML tag ?
         # FIXME: add class with cascading
 
+        debug 1 "... processing global 'id'-matches ..."
         echo "FILTER: ${list}_id_global Tag filter of ${list}" >> "${filterfile}"
-        debug 1 "... processing 'id'-matches ..."
         (
+            # allow handling of left-over lines from last while-loop-run
+            shopt -s lastpipe
             lines=()
             # using while-loop as privoxy cannot handle more than 2000 or-connected strings within one regex
             sed -e '
-                # only process gloabl classes
+                # only process gloabl id-only matches
                 /^###.*/!d
                 # remove all matches with combinators
-                /^###.*[>+~].*/d
+                /^###.*[>+~ ].*/d
                 # cleanup
                 s/^###//g
                 # prepare regex merging
@@ -335,50 +355,105 @@ function main() {
                 printf ')[%s].*>.*<\/\\1[^>]*>@@g\n' "\"'"
                 lines=()
             done
+            # process last chunk with less than 1000 entries
+            if [ "${#lines[@]}" -gt 0 ]; then
+                printf 's@<([a-zA-Z0-9]+)\\s+.*id=[%s](' "\"'"
+                printf '%s\n' "${lines[@]}" | sed '$ s/|//' | tr -d '\n'
+                printf ')[%s].*>.*<\/\\1[^>]*>@@g\n' "\"'"
+            fi
+            shopt -u lastpipe
         ) >> "${filterfile}"
+
+        debug 1 "... registering ${list}_id_global in actionfile ..."
+        (
+            echo "{ +filter{${list}_id_global} }"
+            echo "/"
+        ) >> "${actionfile}"
+        debug 1 "... registered ..."
         # FIXME: add id handling with domains
         # FIXME: add id handling with combinators
-        # FIXME: add id with defined HTML tag:
-        #        s/^\([a-zA-Z0-9][a-zA-Z0-9]*\)#\(.*\):.*[\:[^:]]*[^:]*/s@<\1.*id=.?\2.*>.*<\/\1>@@g/g
-        #        s/^\([a-zA-Z0-9][a-zA-Z0-9]*\)#\(.*\)/s@<\1.*id=.?\2.*>.*<\/\1>@@g/g
         # FIXME: add id with cascading
 
-        echo "FILTER: ${list}_attribute Tag filter of ${list}" >> "${filterfile}"
-        debug 1 "... processing 'attribute'-matches ..."
-        sed '
-        # only process gloabl classes
-        /^##\[.*/!d
-        # remove all matches with combinators
-        /^##\[.*[>+~].*/d
-        # cleanup
-        s/^##//g
-        # convert attribute based filters with exact match with exact match
-        s/^\[\([^=^]*\)"*=\(.*\)\]/s@\1=\2>@@g/g
-        # convert attribute based filter with contain match
-        s/^\[\([^=^]*\)"*\*="*\([^"]*\)"*\]/s@\1=".*\2.*">@@g/g
-        # convert attribute based filter with startwith match
-        s/^\[\([^=]*\)"*^="*\([^"]*\)"*\]/s@\1="\2.*">@@g/g
-        # convert attribute based filter with endswith match
-        s/^\[\([^=^]*\)"*\$="*\([^"]*\)"*\]/s@\1=".*\2">@@g/g
-        # convert attribute name-only matches
-        s/^\[\(.*\)"*\]/s@<.*\1.*\/>@@g\ns@<\([^ ]*\) .*\1.*>.*<\/\\1.*>@@g/g
-        # convert dots
-        s/\.\([a-zA-Z0-9]\)/\\.\1/g
-        ' "${html_file}" >> "${filterfile}"
+        debug 1 "... processing 'attribute'-matches with name only and no HTML tag ..."
+        echo "FILTER: ${list}_attribute_global_name_only Tag filter of ${list}" >> "${filterfile}"
+        (
+            # allow handling of left-over lines from last while-loop-run
+            shopt -s lastpipe
+            lines=()
+            # using while-loop as privoxy cannot handle more than 2000 or-connected strings within one regex
+            sed -e '
+                # only process gloabl classes
+                /^##\[[^=][^=]*$/!d
+                # remove all matches with combinators
+                /^##.*[>+~ ].*/d
+                # cleanup
+                s/^##//g
+                # convert attribute name-only matches
+                s/^\[\([^=][^=]*\)\]/\1/g
+                # convert dots
+                s/\.\([^\.]\)/\\.\1/g
+                s/$/|/
+            ' "${html_file}" | sort -u | while read -r line; do
+                # number of matches within one rule impacts runtime of each request to modify the content
+                if [ "${#lines[@]}" -lt 1000 ]; then
+                    lines+=("$line")
+                    continue
+                fi
+                # complexity of regex impacts runtime of each request to modify the content
+                # using removal of whole HTML tag as multiple matches with different classes in same element are not possible
+                # printf to inject both quoting characters " and '
+                printf 's@<([a-zA-Z0-9]+)\\s+.*('
+                # using tr to merge lines because sed-based approachs takes up to 6 MB RAM and >10 seconds during testing
+                printf '%s\n' "${lines[@]}" | sed '$ s/|//' | tr -d '\n'
+                # printf to inject both quoting characters " and '
+                printf ').*>.*<\/\\1[^>]*>@@g\n'
+                lines=()
+            done
+            # process last chunk with less than 1000 entries
+            if [ "${#lines[@]}" -gt 0 ]; then
+                printf 's@<([a-zA-Z0-9]+)\\s+.*('
+                printf '%s\n' "${lines[@]}" | sed '$ s/|//' | tr -d '\n'
+                printf ').*>.*<\/\\1[^>]*>@@g\n'
+            fi
+            shopt -u lastpipe
+        ) >> "${filterfile}"
+
+        debug 1 "... registering ${list}_attribute_global_name_only in actionfile ..."
+        (
+            echo "{ +filter{${list}_attribute_global_name_only} }"
+            echo "/"
+        ) >> "${actionfile}"
+        debug 1 "... registered ..."
+
+        #debug 1 "... processing 'attribute'-matches ..."
+        #sed '
+        ## only process gloabl classes
+        #/^##\[.*/!d
+        ## remove all matches with combinators
+        #/^##\[.*[>+~].*/d
+        ## cleanup
+        #s/^##//g
+        ## convert attribute based filters with exact match with
+        #s/^\[\([^=^]*\)"*=\(.*\)\]/s@\1=\2>@@g/g
+        ## convert attribute based filter with contain match
+        #s/^\[\([^=^]*\)"*\*="*\([^"]*\)"*\]/s@\1=".*\2.*">@@g/g
+        ## convert attribute based filter with startwith match
+        #s/^\[\([^=]*\)"*^="*\([^"]*\)"*\]/s@\1="\2.*">@@g/g
+        ## convert attribute based filter with endswith match
+        #s/^\[\([^=^]*\)"*\$="*\([^"]*\)"*\]/s@\1=".*\2">@@g/g
+        ## convert dots
+        #s/\.\([a-zA-Z0-9]\)/\\.\1/g
+        #' "${html_file}" >> "${filterfile}"
+
+        #debug 1 "... registering ${list}_attribute in actionfile ..."
+        #(
+        #    echo "{ +filter{${list}_attribute} }"
+        #    echo "*"
+        #) >> "${actionfile}"
+        #debug 1 "... registered ..."
         # FIXME: add attribute handling with domains
         # FIXME: add attribute handling with combinators
         # FIXME: add combination of classes and attributes: ##.OUTBRAIN[data-widget-id^="FMS_REELD_"]
-
-        debug 1 "... filterfile created - adding filterfile to actionfile ..."
-        (
-            echo "{ +filter{${list}_class_global} }"
-            echo "/"
-            echo "{ +filter{${list}_id_global} }"
-            echo "/"
-            echo "{ +filter{${list}_attribute} }"
-            echo "*"
-        ) >> "${actionfile}"
-        debug 1 "... filterfile added ..."
 
         # create domain based whitelist
 
