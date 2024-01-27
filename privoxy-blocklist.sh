@@ -374,11 +374,11 @@ function main() {
         # FIXME: add id handling with combinators
         # FIXME: add id with cascading
 
-        debug 1 "... processing 'attribute'-matches with name only and no HTML tag ..."
-        echo "FILTER: ${list}_attribute_global_name_only Tag filter of ${list}" >> "${filterfile}"
+        debug 1 "... processing 'attribute'-matches with no HTML tag ..."
         (
-            # allow handling of left-over lines from last while-loop-run
             shopt -s lastpipe
+            # allow handling of left-over lines from last while-loop-run
+            echo "FILTER: ${list}_attribute_global_name_only Tag filter of ${list}"
             lines=()
             # using while-loop as privoxy cannot handle more than 2000 or-connected strings within one regex
             sed -e '
@@ -415,42 +415,176 @@ function main() {
                 printf '%s\n' "${lines[@]}" | sed '$ s/|//' | tr -d '\n'
                 printf ').*>.*<\/\\1[^>]*>@@g\n'
             fi
+
+            echo "FILTER: ${list}_attribute_exact Tag filter of ${list}"
+            lines=()
+            # using while-loop as privoxy cannot handle more than 2000 or-connected strings within one regex
+            sed -e '
+                # only process gloabl classes
+                /^##\[[^=^*][^=^*]*=.*$/!d
+                # remove all matches with combinators
+                /^##.*[>+~ ].*/d
+                # cleanup
+                s/^##//g
+                # convert attribute name-only matches
+                s/^\[\([^=][^=]*\)=\(.*\)\]/\1=\2/g
+                # convert dots
+                s/\.\([^\.]\)/\\.\1/g
+                s/$/|/
+            ' "${html_file}" | sort -u | while read -r line; do
+                # number of matches within one rule impacts runtime of each request to modify the content
+                if [ "${#lines[@]}" -lt 1000 ]; then
+                    lines+=("$line")
+                    continue
+                fi
+                # complexity of regex impacts runtime of each request to modify the content
+                # using removal of whole HTML tag as multiple matches with different classes in same element are not possible
+                # printf to inject both quoting characters " and '
+                printf 's@<([a-zA-Z0-9]+)\\s+.*('
+                # using tr to merge lines because sed-based approachs takes up to 6 MB RAM and >10 seconds during testing
+                printf '%s\n' "${lines[@]}" | sed '$ s/|//' | tr -d '\n'
+                # printf to inject both quoting characters " and '
+                printf ').*>.*<\/\\1[^>]*>@@g\n'
+                lines=()
+            done
+            # process last chunk with less than 1000 entries
+            if [ "${#lines[@]}" -gt 0 ]; then
+                printf 's@<([a-zA-Z0-9]+)\\s+.*('
+                printf '%s\n' "${lines[@]}" | sed '$ s/|//' | tr -d '\n'
+                printf ').*>.*<\/\\1[^>]*>@@g\n'
+            fi
+
+            echo "FILTER: ${list}_attribute_contain Tag filter of ${list}"
+            lines=()
+            # using while-loop as privoxy cannot handle more than 2000 or-connected strings within one regex
+            sed -e '
+                # only process gloabl classes
+                /^##\[[^*][^*]*\*=.*$/!d
+                # remove all matches with combinators
+                /^##.*[>+~ ].*/d
+                # cleanup
+                s/^##//g
+                # convert dots
+                s/\.\([^\.]\)/\\.\1/g
+                # convert attribute based filter with contain match
+                s/^\[\([^*][^*]*\)\*=\(["'"'"']*\)\([^"][^"]*\)"*\(["'"'"']*\)\]/\1=\2.*\3.*\4/g
+                s/$/|/
+            ' "${html_file}" | sort -u | while read -r line; do
+                # number of matches within one rule impacts runtime of each request to modify the content
+                if [ "${#lines[@]}" -lt 1000 ]; then
+                    lines+=("$line")
+                    continue
+                fi
+                # complexity of regex impacts runtime of each request to modify the content
+                # using removal of whole HTML tag as multiple matches with different classes in same element are not possible
+                # printf to inject both quoting characters " and '
+                printf 's@<([a-zA-Z0-9]+)\\s+.*('
+                # using tr to merge lines because sed-based approachs takes up to 6 MB RAM and >10 seconds during testing
+                printf '%s\n' "${lines[@]}" | sed '$ s/|//' | tr -d '\n'
+                # printf to inject both quoting characters " and '
+                printf ').*>.*<\/\\1[^>]*>@@g\n'
+                lines=()
+            done
+            # process last chunk with less than 1000 entries
+            if [ "${#lines[@]}" -gt 0 ]; then
+                printf 's@<([a-zA-Z0-9]+)\\s+.*('
+                printf '%s\n' "${lines[@]}" | sed '$ s/|//' | tr -d '\n'
+                printf ').*>.*<\/\\1[^>]*>@@g\n'
+            fi
+
+            echo "FILTER: ${list}_attribute_startswith Tag filter of ${list}"
+            lines=()
+            # using while-loop as privoxy cannot handle more than 2000 or-connected strings within one regex
+            sed -e '
+                # only process gloabl classes
+                /^##\[[^=^][^=^]*\^=.*$/!d
+                # remove all matches with combinators
+                /^##.*[>+~ ].*/d
+                # cleanup
+                s/^##//g
+                # convert dots
+                s/\.\([^\.]\)/\\.\1/g
+                # convert attribute based filter with startwith match
+                s/^\[\([^^][^^]*\)^=\(["'"'"']*\)\(.*[^"'"'"']\)\(["'"'"']*\)\]/\1=\2\3.*\4/g
+                s/$/|/
+            ' "${html_file}" | sort -u | while read -r line; do
+                # number of matches within one rule impacts runtime of each request to modify the content
+                if [ "${#lines[@]}" -lt 1000 ]; then
+                    lines+=("$line")
+                    continue
+                fi
+                # complexity of regex impacts runtime of each request to modify the content
+                # using removal of whole HTML tag as multiple matches with different classes in same element are not possible
+                # printf to inject both quoting characters " and '
+                printf 's@<([a-zA-Z0-9]+)\\s+.*('
+                # using tr to merge lines because sed-based approachs takes up to 6 MB RAM and >10 seconds during testing
+                printf '%s\n' "${lines[@]}" | sed '$ s/|//' | tr -d '\n'
+                # printf to inject both quoting characters " and '
+                printf ').*>.*<\/\\1[^>]*>@@g\n'
+                lines=()
+            done
+            # process last chunk with less than 1000 entries
+            if [ "${#lines[@]}" -gt 0 ]; then
+                printf 's@<([a-zA-Z0-9]+)\\s+.*('
+                printf '%s\n' "${lines[@]}" | sed '$ s/|//' | tr -d '\n'
+                printf ').*>.*<\/\\1[^>]*>@@g\n'
+            fi
+
+            echo "FILTER: ${list}_attribute_endswith Tag filter of ${list}"
+            lines=()
+            # using while-loop as privoxy cannot handle more than 2000 or-connected strings within one regex
+            sed -e '
+                # only process gloabl classes
+                /^##\[[^$][^=$]*\$=.*$/!d
+                # remove all matches with combinators
+                /^##.*[>+~ ].*/d
+                # cleanup
+                s/^##//g
+                # convert dots
+                s/\.\([^\.]\)/\\.\1/g
+                # convert attribute based filter with endswith match
+                s/^\[\([^\$][^\$]*\)\$=\(["'"'"']*\)\(.*[^"'"'"']\)\(["'"'"']*\)\]/\1=\2.*\3\4/g
+                s/$/|/
+            ' "${html_file}" | sort -u | while read -r line; do
+                # number of matches within one rule impacts runtime of each request to modify the content
+                if [ "${#lines[@]}" -lt 1000 ]; then
+                    lines+=("$line")
+                    continue
+                fi
+                # complexity of regex impacts runtime of each request to modify the content
+                # using removal of whole HTML tag as multiple matches with different classes in same element are not possible
+                # printf to inject both quoting characters " and '
+                printf 's@<([a-zA-Z0-9]+)\\s+.*('
+                # using tr to merge lines because sed-based approachs takes up to 6 MB RAM and >10 seconds during testing
+                printf '%s\n' "${lines[@]}" | sed '$ s/|//' | tr -d '\n'
+                # printf to inject both quoting characters " and '
+                printf ').*>.*<\/\\1[^>]*>@@g\n'
+                lines=()
+            done
+            # process last chunk with less than 1000 entries
+            if [ "${#lines[@]}" -gt 0 ]; then
+                printf 's@<([a-zA-Z0-9]+)\\s+.*('
+                printf '%s\n' "${lines[@]}" | sed '$ s/|//' | tr -d '\n'
+                printf ').*>.*<\/\\1[^>]*>@@g\n'
+            fi
             shopt -u lastpipe
         ) >> "${filterfile}"
 
-        debug 1 "... registering ${list}_attribute_global_name_only in actionfile ..."
+        debug 1 "... registering ${list}_attribute filters in actionfile ..."
         (
             echo "{ +filter{${list}_attribute_global_name_only} }"
+            echo "/"
+            echo "{ +filter{${list}_attribute_exact} }"
+            echo "/"
+            echo "{ +filter{${list}_attribute_contain} }"
+            echo "/"
+            echo "{ +filter{${list}_attribute_startswith} }"
+            echo "/"
+            echo "{ +filter{${list}_attribute_endswith} }"
             echo "/"
         ) >> "${actionfile}"
         debug 1 "... registered ..."
 
-        #debug 1 "... processing 'attribute'-matches ..."
-        #sed '
-        ## only process gloabl classes
-        #/^##\[.*/!d
-        ## remove all matches with combinators
-        #/^##\[.*[>+~].*/d
-        ## cleanup
-        #s/^##//g
-        ## convert attribute based filters with exact match with
-        #s/^\[\([^=^]*\)"*=\(.*\)\]/s@\1=\2>@@g/g
-        ## convert attribute based filter with contain match
-        #s/^\[\([^=^]*\)"*\*="*\([^"]*\)"*\]/s@\1=".*\2.*">@@g/g
-        ## convert attribute based filter with startwith match
-        #s/^\[\([^=]*\)"*^="*\([^"]*\)"*\]/s@\1="\2.*">@@g/g
-        ## convert attribute based filter with endswith match
-        #s/^\[\([^=^]*\)"*\$="*\([^"]*\)"*\]/s@\1=".*\2">@@g/g
-        ## convert dots
-        #s/\.\([a-zA-Z0-9]\)/\\.\1/g
-        #' "${html_file}" >> "${filterfile}"
-
-        #debug 1 "... registering ${list}_attribute in actionfile ..."
-        #(
-        #    echo "{ +filter{${list}_attribute} }"
-        #    echo "*"
-        #) >> "${actionfile}"
-        #debug 1 "... registered ..."
         # FIXME: add attribute handling with domains
         # FIXME: add attribute handling with combinators
         # FIXME: add combination of classes and attributes: ##.OUTBRAIN[data-widget-id^="FMS_REELD_"]
