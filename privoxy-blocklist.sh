@@ -160,6 +160,8 @@ EOF
     if [ -n "${OPT_FILTERS[*]}" ]; then
         FILTERS=("${OPT_FILTERS[@]}")
     fi
+    debug 2 "Content filters: ${OPT_FILTERS[*]:-disabled}"
+
     # load privoxy config
     # shellcheck disable=SC1090
     if [[ -r "${INIT_CONF:-no-init-conf}" ]]; then
@@ -801,7 +803,6 @@ lock
 debug 2 "URL-List: ${URLS[*]}"
 debug 2 "Privoxy-Configdir: ${PRIVOXY_DIR}"
 debug 2 "Temporary directory: ${TMPDIR}"
-debug 2 "Content filters: ${OPT_FILTERS[*]:-disabled}"
 "${method}"
 
 # restore default exit command

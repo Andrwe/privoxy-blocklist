@@ -25,7 +25,6 @@ The following table shows features of AdBlock Plus filters and there status with
 
 | Feature | Type | Status | Test |
 | ------- | ---- | ------ | ---- |
-| `#$#` | CSS selector - Snippet filter | :question: | :question: |
 | `:-abp-contains()` | extended CSS selector | :question: | :question: |
 | `:-abp-has()` | extended CSS selector | :question: | :question: |
 | `:-abp-properties()` | extended CSS selector | :question: | :question: |
@@ -33,10 +32,22 @@ The following table shows features of AdBlock Plus filters and there status with
 | `\|…\|` | block exact domain matching including scheme | :question: | :question: |
 | `!…` | comments | :white_check_mark: | |
 | `csp=` | filter options | :question: | :question: |
-| `##…[…]` | CSS attribute selector | :question: | :question: |
-| `##` | CSS selector - Element hiding | :white_check_mark: | |
-| `#?#` | CSS selector - Element hiding emulation | :question: | :question: |
-| `#@#` | CSS selector - Element hiding exception | :question: | :question: |
+| `##.class` | global CSS attribute selector with matching for class | :white_check_mark: | :white_check_mark: |
+| `###id` | global CSS attribute selector with matching for id | :white_check_mark: | :white_check_mark: |
+| `##[attribute]` | global CSS attribute selector with matching for attribute-name | :white_check_mark: | :white_check_mark: |
+| `##[attribute=value]` | global CSS attribute selector with matching for attribute-value pair | :white_check_mark: | :white_check_mark: |
+| `##[attribute^=value]` | global CSS attribute selector with matching for attribute with value starting with | :white_check_mark: | :white_check_mark: |
+| `##[attribute$=value]` | global CSS attribute selector with matching for attribute with value ending with | :white_check_mark: | :white_check_mark: |
+| `##[attribute*=value]` | global CSS attribute selector with matching for attribute with value containing | :white_check_mark: | :white_check_mark: |
+| `##html-tag[attribute]` | global CSS attribute selector for html-tag with matching for attribute-name | :construction: | :construction: |
+| `##html-tag[attribute=value]` | global CSS attribute selector for html-tag with matching for attribute-value pair | :construction: | :construction: |
+| `##html-tag[attribute^=value]` | global CSS attribute selector for html-tag with matching for attribute with value starting with | :construction: | :construction: |
+| `##html-tag[attribute$=value]` | global CSS attribute selector for html-tag with matching for attribute with value ending with | :construction: | :construction: |
+| `##html-tag[attribute*=value]` | global CSS attribute selector for html-tag with matching for attribute with value containing | :construction: | :construction: |
+| `[…]#$#` | domain based CSS selector - Snippet filter | :question: | :question: |
+| `[…]##` | domain based CSS selector - Element hiding | :white_check_mark: | |
+| `[…]#?#` | domain based CSS selector - Element hiding emulation | :question: | :question: |
+| `[…]#@#` | domain based CSS selector - Element hiding exception | :question: | :question: |
 | `document` | filter options | :question: | :question: |
 | `~domain=` | filter options | :question: | :question: |
 | `domain=` | filter options | :question: | :question: |
