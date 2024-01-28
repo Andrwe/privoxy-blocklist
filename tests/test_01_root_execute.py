@@ -48,9 +48,21 @@ def test_version_option(shell, tmp_path, privoxy_blocklist) -> None:
     assert ret.stdout == "Version: 0.0.1\n"
 
 
-def test_next_run(shell, privoxy_blocklist) -> None:
+def test_filter_check(shell, privoxy_blocklist) -> None:
+    """Test filtertype check."""
+    cmd = [privoxy_blocklist, "-f", "bla"]
+    ret_script = shell.run(*cmd)
+    assert ret_script.returncode == 1
+    assert "" == ret_script.stdout
+    assert "Unknown filters: bla" in ret_script.stderr.strip()
+
+
+def test_next_run(shell, privoxy_blocklist, filtertypes) -> None:
     """Test followup runs."""
-    ret_script = shell.run(privoxy_blocklist)
+    cmd = [privoxy_blocklist]
+    for filtertype in filtertypes:
+        cmd.extend(["-f", filtertype])
+    ret_script = shell.run(*cmd)
     assert ret_script.returncode == 0
     ret_privo = shell.run(
         "/usr/sbin/privoxy", "--no-daemon", "--config-test", "/etc/privoxy/config"

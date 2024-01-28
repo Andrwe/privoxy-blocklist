@@ -89,6 +89,26 @@ def webserver(httpserver) -> UrlParsed:
 
 
 @pytest.fixture(scope="module")
+def filtertypes() -> list[str]:
+    """Return filtertypes supported by privoxy-blocklist."""
+    filter_types = []
+    with Path(__file__).parent.parent.joinpath("privoxy-blocklist.sh").open(
+        "r", encoding="UTF-8"
+    ) as f_h:
+        found_line = False
+        for line in f_h.readlines():
+            if not found_line and not line.startswith("FILTERTYPES"):
+                continue
+            if line.startswith("FILTERTYPES"):
+                found_line = True
+                continue
+            if line.endswith(")\n"):
+                break
+            filter_types.append(line.strip().strip('"'))
+    return filter_types
+
+
+@pytest.fixture(scope="module")
 def privoxy_blocklist() -> str:
     """Return the path to privoxy-blocklist.sh."""
     for known_path in [
