@@ -4,29 +4,31 @@
 from pathlib import Path
 from shutil import copyfile, copymode, which
 
+import config
 import requests
+from conftest import check_in, check_not_in
 
 
 def test_config_generator(shell, privoxy_blocklist) -> None:
     """Test config generator with default path."""
-    config = Path("/etc/privoxy-blocklist.conf")
-    if config.exists():
-        config.unlink()
+    config_file = Path("/etc/privoxy-blocklist.conf")
+    if config_file.exists():
+        config_file.unlink()
     ret = shell.run(privoxy_blocklist)
     assert ret.returncode == 2
     assert "Creating default one and exiting" in ret.stdout
-    assert config.exists()
+    assert config_file.exists()
 
 
 def test_custom_config_generator(shell, tmp_path, privoxy_blocklist) -> None:
     """Test config generator with custom path."""
-    config = Path(f"{tmp_path}/privoxy-blocklist")
-    if config.exists():
-        config.unlink()
-    ret = shell.run(privoxy_blocklist, "-c", str(config))
+    config_file = Path(f"{tmp_path}/privoxy-blocklist")
+    if config_file.exists():
+        config_file.unlink()
+    ret = shell.run(privoxy_blocklist, "-c", str(config_file))
     assert ret.returncode == 2
     assert "Creating default one and exiting" in ret.stdout
-    assert config.exists()
+    assert config_file.exists()
 
 
 def test_version_option(shell, tmp_path, privoxy_blocklist) -> None:
@@ -46,9 +48,21 @@ def test_version_option(shell, tmp_path, privoxy_blocklist) -> None:
     assert ret.stdout == "Version: 0.0.1\n"
 
 
-def test_next_run(shell, privoxy_blocklist) -> None:
+def test_filter_check(shell, privoxy_blocklist) -> None:
+    """Test filtertype check."""
+    cmd = [privoxy_blocklist, "-f", "bla"]
+    ret_script = shell.run(*cmd)
+    assert ret_script.returncode == 1
+    assert "" == ret_script.stdout
+    assert "Unknown filters: bla" in ret_script.stderr.strip()
+
+
+def test_next_run(shell, privoxy_blocklist, filtertypes) -> None:
     """Test followup runs."""
-    ret_script = shell.run(privoxy_blocklist)
+    cmd = [privoxy_blocklist]
+    for filtertype in filtertypes:
+        cmd.extend(["-f", filtertype])
+    ret_script = shell.run(*cmd)
     assert ret_script.returncode == 0
     ret_privo = shell.run(
         "/usr/sbin/privoxy", "--no-daemon", "--config-test", "/etc/privoxy/config"
@@ -58,77 +72,61 @@ def test_next_run(shell, privoxy_blocklist) -> None:
 
 def test_request_success(start_privoxy, supported_schemes) -> None:
     """Test URLs not blocked by privoxy."""
-    # FIXME: see https://github.com/Andrwe/privoxy-blocklist/issues/35
-    urls = ["duckduckgo.com/", "hs-exp.jp/ads/"]
-    urls = ["duckduckgo.com/"]
-    run_requests(start_privoxy, supported_schemes, urls, [200, 301, 302])
+    run_requests(start_privoxy, supported_schemes, config.urls_allowed, [200, 301, 302])
 
 
 def test_request_block_url(start_privoxy, supported_schemes) -> None:
     """Test URLs blocked by privoxy due to easylist."""
-    urls = [
-        "andrwe.org/ads/",
-        "andrwe.jp/ads/",
-        "pubfeed.linkby.com",
-        f"s3.{'a'*6}.amazonaws.com/{'0123abcd'*6}/{'ab,12'*2}/",
-    ]
-    urls = ["andrwe.org/ads/", "andrwe.jp/ads/", "pubfeed.linkby.com"]
-    run_requests(start_privoxy, supported_schemes, urls, [403])
+    run_requests(start_privoxy, supported_schemes, config.urls_blocked, [403])
 
 
+def test_content_removed(start_privoxy, webserver) -> None:
+    """Test filters for removing content."""
+    response = run_request(
+        start_privoxy,
+        scheme=webserver.scheme,
+        url=webserver.scheme_less_url,
+        expected_code=[200],
+    )
+    # expected response
+    assert check_in("just-some-test-string-always-present", response.text)
+    for needle in config.content_removed:
+        # check presence of needle without privoxy
+        assert check_in(needle, requests.get(webserver.origin_url, timeout=10).text)
+        # check presence of needle with privoxy
+        assert check_not_in(needle, response.text)
+
+
+def test_content_exists(start_privoxy, webserver) -> None:
+    """Test filters for removing content."""
+    response = run_request(
+        start_privoxy,
+        scheme=webserver.scheme,
+        url=webserver.scheme_less_url,
+        expected_code=[200],
+    )
+    # expected response
+    assert check_in("just-some-test-string-always-present", response.text)
+    for needle in config.content_exists:
+        # check presence of needle without privoxy
+        assert check_in(needle, requests.get(webserver.origin_url, timeout=10).text)
+        # check presence of needle with privoxy
+        assert check_in(needle, response.text)
+
+
+# must be second last test as it will generate unpredictable privoxy configurations
 def test_predefined_custom_config_generator(shell, privoxy_blocklist) -> None:
     """Run tests for all pre-defined configs."""
-    checks = {
-        "url_extended_config.conf": [
-            (
-                check_in,
-                "Processing https://raw.githubusercontent.com/easylist/easylist/master/"
-                "easylist/easylist_allowlist_general_hide.txt",
-            ),
-            (
-                check_in,
-                "Processing https://easylist-downloads.adblockplus.org/easylistgermany.txt",
-            ),
-            (
-                check_in,
-                "The list recieved from https://raw.githubusercontent.com/easylist/easylist/master"
-                "/easylist/easylist_allowlist_general_hide.txt does not contain AdblockPlus list "
-                "header. Try to process anyway.",
-            ),
-            (
-                check_not_in,
-                "created and added image handler",
-            ),
-        ],
-        "debugging.conf": [
-            (
-                check_in,
-                "Processing https://easylist-downloads.adblockplus.org/easylistgermany.txt",
-            ),
-            (
-                check_not_in,
-                "does not contain AdblockPlus list header.",
-            ),
-            (
-                check_in,
-                "‘/tmp/privoxy-blocklist.sh/easylist.txt’ saved",
-            ),
-            (
-                check_in,
-                "created and added image handler",
-            ),
-        ],
-    }
     test_config_dir = Path(__file__).parent / "configs"
-    for config in test_config_dir.iterdir():
-        if not config.is_file():
+    for config_file in test_config_dir.iterdir():
+        if not config_file.is_file():
             continue
-        ret = shell.run(privoxy_blocklist, "-c", str(config))
+        ret = shell.run(privoxy_blocklist, "-c", str(config_file))
         assert ret.returncode == 0
         assert check_not_in("Creating default one and exiting", ret.stdout)
-        for check in checks.get(config.name, []):
+        for check in config.config_checks.get(config_file.name, []):
             assert check[0](check[1], ret.stdout)
-        assert config.exists()
+        assert config_file.exists()
 
 
 # must be last test as it will uninstall dependencies and check error handling
@@ -150,17 +148,11 @@ def test_missing_deps(shell, privoxy_blocklist) -> None:
     assert "Please install the package providing" in ret_script.stderr
 
 
+def test_privoxy_runtime_log() -> None:
+    """NOOP function to support checking privoxy logs during tear-down."""
+
+
 # Heloer functions
-
-
-def check_in(needle: str, haystack: str) -> bool:
-    """Check given haystack for given string."""
-    return needle in haystack
-
-
-def check_not_in(needle: str, haystack: str) -> bool:
-    """Check that given string is not in given text."""
-    return needle not in haystack
 
 
 def run_requests(

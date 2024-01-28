@@ -1,0 +1,16 @@
+<html>
+	<body>
+		<div>just-some-test-string-always-present</div>
+		<div class="ad_970x250">single class should be removed</div>
+		<div class="asd ajlkl AdRight2">multiple classes that should be removed</div>
+		<div class="asd ajlkl"> multiple classes that should exist </div>
+		<div id="MyAdsId3">id should be removed</div>
+		<div data-ad-manager-id class="success-valid-class">name-only attibute should be removed</div>
+		<div data-role="tile-ads-module" class="success-valid-class">exact match attibute should be removed</div>
+		<div onclick="foo_content.ad/-asd">1. contain match attribute should be removed</div>
+		<div onclick="content.ad/">2. contain match attribute should be removed</div>
+		<div class="adDisplay-module_foobar">1. startswith match attribute should be removed</div>
+		<div class="adDisplay-modul">startswith match attribute should be exist</div>
+		<div onclick="location.href='http://www.reimageplus.com/foobar'">2. startswith match attribute should be removed</div>
+	</body>
+</html>

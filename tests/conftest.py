@@ -4,14 +4,34 @@
 import os
 from pathlib import Path
 from re import search
-from typing import Dict, Generator, Optional, cast
+from typing import Generator, Optional
 
 import pytest
 import requests
-from pytest import CollectReport, StashKey
+from pytest import StashKey
 from pytestshellutils.shell import Daemon
+from urllib3.util import Url, parse_url
 
-phase_report_key = StashKey[Dict[str, CollectReport]]()
+phase_report_key = StashKey[int]()
+
+
+class UrlParsed:
+    """Class to parse and store URL."""
+
+    origin_url: str
+    parsed_url: Url
+    scheme: str
+    scheme_less_url: str
+
+    def __init__(self, url: str):
+        """Initialize object by parsing given URL."""
+        self.origin_url = url
+        self.parsed_url = parse_url(self.origin_url)
+        self.scheme = self.parsed_url.scheme or "http"
+        parsed_port = f":{self.parsed_url.port}" if self.parsed_url.port else ""
+        self.scheme_less_url = (
+            f"{self.parsed_url.host}{parsed_port}{self.parsed_url.request_uri}"
+        )
 
 
 def debug_enabled() -> bool:
@@ -26,6 +46,16 @@ def debug_enabled() -> bool:
     )
 
 
+def check_in(needle: str, haystack: str) -> bool:
+    """Check given haystack for given string."""
+    return needle in haystack
+
+
+def check_not_in(needle: str, haystack: str) -> bool:
+    """Check that given string is not in given text."""
+    return needle not in haystack
+
+
 # based on
 # https://docs.pytest.org/en/latest/example/simple.html#making-test-result-information-available-in-fixtures
 @pytest.hookimpl(wrapper=True, tryfirst=True)
@@ -35,14 +65,47 @@ def pytest_runtest_makereport(item: pytest.Item):
     report = yield
 
     if item.parent:
+        # store test results for each phase ("setup", "call", "teardown") of each test
+        # within module-scope
+        if phase_report_key not in item.parent.stash:
+            item.parent.stash.setdefault(phase_report_key, 0)
         if report.failed:
-            # store test results for each phase ("setup", "call", "teardown") of each test
-            # within module-scope
-            item.parent.stash.setdefault(
-                phase_report_key, cast(Dict[str, CollectReport], {})
-            )[f"{report.nodeid}_{report.when}"] = report
+            item.parent.stash[phase_report_key] += 1
 
     return report
+
+
+@pytest.fixture
+def webserver(httpserver) -> UrlParsed:
+    """Start HTTP server and return parsed URL object."""
+    with Path(__file__).parent.joinpath("response.html").open(
+        "r", encoding="UTF-8"
+    ) as f_h:
+        response_html = f_h.read()
+    httpserver.expect_request("/").respond_with_data(
+        response_data=response_html, content_type="text/html"
+    )
+    return UrlParsed(httpserver.url_for("/"))
+
+
+@pytest.fixture(scope="module")
+def filtertypes() -> list[str]:
+    """Return filtertypes supported by privoxy-blocklist."""
+    filter_types = []
+    with Path(__file__).parent.parent.joinpath("privoxy-blocklist.sh").open(
+        "r", encoding="UTF-8"
+    ) as f_h:
+        found_line = False
+        for line in f_h.readlines():
+            if not found_line and not line.startswith("FILTERTYPES"):
+                continue
+            if line.startswith("FILTERTYPES"):
+                found_line = True
+                continue
+            if line.endswith(")\n"):
+                break
+            filter_types.append(line.strip().strip('"'))
+    return filter_types
 
 
 @pytest.fixture(scope="module")
@@ -95,12 +158,14 @@ def start_privoxy(request: pytest.FixtureRequest) -> Generator[bool, None, None]
     run.start()
     yield run.is_running()
     run_result = run.terminate()
+    logs = run_result.stdout + run_result.stderr
     # request.node is an "module" because we use the "module" scope
     node = request.node
-    if (phase_report_key in node.stash) and len(node.stash[phase_report_key]) > 0:
-        print(
-            f"\n\nprivoxy-results\n  stdout:\n{run_result.stdout}\n  stderr:\n{run_result.stderr}"
-        )
+    if (
+        (phase_report_key in node.stash) and node.stash[phase_report_key] > 0
+    ) or " Error: " in logs:
+        print(f"\n\nprivoxy-logs\n{logs}")
+    assert " Error: " not in logs
 
 
 @pytest.fixture(scope="module")
