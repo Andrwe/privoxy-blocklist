@@ -23,18 +23,19 @@ if exists apt-get; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq -y
     apt-get install -y privoxy sed grep bash wget
-    # prepare HTTPS inspection
-    mkdir -p /etc/privoxy/CA/certs /usr/local/share/ca-certificates/privoxy
-    openssl req -new -x509 -extensions v3_ca -keyout /etc/privoxy/CA/cakey.pem -out /etc/privoxy/CA/cacert.crt -days 3650 -noenc -batch
-    chown -R privoxy /etc/privoxy/CA
-    if ! grep -q '^{+https-inspection}' /etc/privoxy/user.action; then
-        cat >> /etc/privoxy/user.action << EOF
+    if [ -n "${HTTPS_SUPPORT:-}" ]; then
+        # prepare HTTPS inspection
+        mkdir -p /etc/privoxy/CA/certs /usr/local/share/ca-certificates/privoxy
+        openssl req -new -x509 -extensions v3_ca -keyout /etc/privoxy/CA/cakey.pem -out /etc/privoxy/CA/cacert.crt -days 3650 -noenc -batch
+        chown -R privoxy /etc/privoxy/CA
+        if ! grep -q '^{+https-inspection}' /etc/privoxy/user.action; then
+            cat >> /etc/privoxy/user.action << EOF
 {+https-inspection}
 .
 EOF
-    fi
-    if ! grep -q '^ca-directory' /etc/privoxy/config; then
-        cat >> /etc/privoxy/config << EOF
+        fi
+        if ! grep -q '^ca-directory' /etc/privoxy/config; then
+            cat >> /etc/privoxy/config << EOF
 ca-directory /etc/privoxy/CA
 certificate-directory /var/lib/privoxy/certs
 trusted-cas-file /etc/ssl/certs/ca-certificates.crt
@@ -43,13 +44,14 @@ ca-key-file cakey.pem
 # activate debugging of rules & access log
 debug 8704
 EOF
+        fi
+        if [ -e /usr/local/share/ca-certificates/privoxy/privoxy-cacert.crt ]; then
+            rm /usr/local/share/ca-certificates/privoxy/privoxy-cacert.crt /etc/ssl/certs/privoxy-cacert.pem
+        fi
+        ln -s /etc/privoxy/CA/cacert.crt /usr/local/share/ca-certificates/privoxy/privoxy-cacert.crt
+        update-ca-certificates
+        c_rehash
     fi
-    if [ -e /usr/local/share/ca-certificates/privoxy/privoxy-cacert.crt ]; then
-        rm /usr/local/share/ca-certificates/privoxy/privoxy-cacert.crt /etc/ssl/certs/privoxy-cacert.pem
-    fi
-    ln -s /etc/privoxy/CA/cacert.crt /usr/local/share/ca-certificates/privoxy/privoxy-cacert.crt
-    update-ca-certificates
-    c_rehash
     exit 0
 fi
 if exists pacman; then

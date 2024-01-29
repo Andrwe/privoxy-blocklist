@@ -19,6 +19,24 @@ Due to this behaviour the script must run as root user to be able to modify the 
 
 Either run `privoxy-blocklist.sh` manually with root privileges (e.g., `sudo privoxy-blocklist.sh`) or via root cronjob.
 
+To activate content filters specify the corresponding filter types either in the configuraiton file or via cli-flag `-f`, e.g.:
+
+```bash
+privoxy-blocklist.sh -f attribute_global_name -f attribute_global_exact -f attribute_global_contain -f attribute_global_startswith -f attribute_global_endswith -f class_global -f id_global
+```
+To see all supported filter types check the help `privoxy-blocklist.sh -h`.
+
+## Installation
+
+1. Install all dependencies:
+   * privoxy
+   * sed
+   * grep
+   * bash
+   * wget
+   * can be simplified by running [helper/install\_deps.sh](https://raw.githubusercontent.com/Andrwe/privoxy-blocklist/main/helper/install_deps.sh) which support Debian, ArchLinux and Alpine based installation
+1. Download `privoxy-blocklist.sh` from the asset list of latest [release](https://github.com/Andrwe/privoxy-blocklist/releases)
+
 ## Feature Support
 
 The following table shows features of AdBlock Plus filters and there status within privoxy-blocklist:
@@ -32,20 +50,20 @@ The following table shows features of AdBlock Plus filters and there status with
 | `\|…\|` | block exact domain matching including scheme | :question: | :question: |
 | `!…` | comments | :white_check_mark: | |
 | `csp=` | filter options | :question: | :question: |
-| `##.class` | global CSS attribute selector with matching for class | :white_check_mark: | :white_check_mark: |
-| `###id` | global CSS attribute selector with matching for id | :white_check_mark: | :white_check_mark: |
-| `##[attribute]` | global CSS attribute selector with matching for attribute-name | :white_check_mark: | :white_check_mark: |
-| `##[attribute=value]` | global CSS attribute selector with matching for attribute-value pair | :white_check_mark: | :white_check_mark: |
-| `##[attribute^=value]` | global CSS attribute selector with matching for attribute with value starting with | :white_check_mark: | :white_check_mark: |
-| `##[attribute$=value]` | global CSS attribute selector with matching for attribute with value ending with | :white_check_mark: | :white_check_mark: |
-| `##[attribute*=value]` | global CSS attribute selector with matching for attribute with value containing | :white_check_mark: | :white_check_mark: |
+| `##.class` | global CSS attribute selector with matching for class | :white_check_mark: (via `-f class_global`) | :white_check_mark: |
+| `###id` | global CSS attribute selector with matching for id | :white_check_mark: (via `-f id_global`) | :white_check_mark: |
+| `##[attribute]` | global CSS attribute selector with matching for attribute-name | :white_check_mark: (via `-f attribute_global_name`) | :white_check_mark: |
+| `##[attribute=value]` | global CSS attribute selector with matching for attribute-value pair | :white_check_mark: (via `-f attribute_global_exact`) | :white_check_mark: |
+| `##[attribute^=value]` | global CSS attribute selector with matching for attribute with value starting with | :white_check_mark: (via `-f attribute_global_startswith`) | :white_check_mark: |
+| `##[attribute$=value]` | global CSS attribute selector with matching for attribute with value ending with | :white_check_mark: (via `-f attribute_global_endswith`) | :white_check_mark: |
+| `##[attribute*=value]` | global CSS attribute selector with matching for attribute with value containing | :white_check_mark: (via `-f attribute_global_contain`) | :white_check_mark: |
 | `##html-tag[attribute]` | global CSS attribute selector for html-tag with matching for attribute-name | :construction: | :construction: |
 | `##html-tag[attribute=value]` | global CSS attribute selector for html-tag with matching for attribute-value pair | :construction: | :construction: |
 | `##html-tag[attribute^=value]` | global CSS attribute selector for html-tag with matching for attribute with value starting with | :construction: | :construction: |
 | `##html-tag[attribute$=value]` | global CSS attribute selector for html-tag with matching for attribute with value ending with | :construction: | :construction: |
 | `##html-tag[attribute*=value]` | global CSS attribute selector for html-tag with matching for attribute with value containing | :construction: | :construction: |
 | `[…]#$#` | domain based CSS selector - Snippet filter | :question: | :question: |
-| `[…]##` | domain based CSS selector - Element hiding | :white_check_mark: | |
+| `[…]##` | domain based CSS selector - Element hiding | :question: | :question: |
 | `[…]#?#` | domain based CSS selector - Element hiding emulation | :question: | :question: |
 | `[…]#@#` | domain based CSS selector - Element hiding exception | :question: | :question: |
 | `document` | filter options | :question: | :question: |
@@ -53,12 +71,12 @@ The following table shows features of AdBlock Plus filters and there status with
 | `domain=` | filter options | :question: | :question: |
 | `~elemhide` | filter options | :question: | :question: |
 | `elemhide` | filter options | :question: | :question: |
-| `@@\|\|…` | exception for domain blocking rules | :white_check_mark: | |
+| `@@\|\|…` | exception for domain blocking rules | :white_check_mark: | :construction: |
 | `font` | filter options | :question: | :question: |
 | `genericblock` | filter options | :question: | :question: |
 | `generichide` | filter options | :question: | :question: |
 | `~image` | filter options | :question: | :question: |
-| `image` | filter options | :white_check_mark: | |
+| `image` | filter options | :white_check_mark: | :construction: |
 | `match-case` | filter options | :question: | :question: |
 | `media` | filter options | :question: | :question: |
 | `~object` | filter options | :question: | :question: |
@@ -91,8 +109,8 @@ The following table shows features of AdBlock Plus filters and there status with
 
 Sources:
 
-* [](https://help.adblockplus.org/hc/en-us/articles/360062733293#options)
-* [](https://adblockplus.org/filter-cheatsheet)
+* [Adblock Plus Help](https://help.adblockplus.org/hc/en-us/articles/360062733293#options)
+* [Adblock Plus Cheatsheet](https://adblockplus.org/filter-cheatsheet)
 
 ## Development
 

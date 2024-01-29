@@ -3,6 +3,7 @@ COPY		tests/requirements.txt /requirements.txt
 COPY		helper/install_deps.sh /install_deps.sh
 # hadolint ignore=DL3018
 ENV		DEBIAN_FRONTEND=noninteractive
+ENV		HTTPS_SUPPORT=true
 RUN		apt-get update \
 		&& apt-get install --no-install-recommends -q --yes \
 			curl \
