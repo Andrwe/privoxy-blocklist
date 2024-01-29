@@ -1,6 +1,5 @@
 """define generic custom fixtures."""
 
-
 import os
 from pathlib import Path
 from re import search
