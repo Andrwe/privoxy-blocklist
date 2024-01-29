@@ -92,7 +92,7 @@ function prepare() {
     for dep in "${DEPENDS[@]}"; do
         if ! type -p "${dep}" > /dev/null; then
             error "The command ${dep} can't be found. Please install the package providing ${dep} and run $0 again. Exit"
-            info "To install all dependencies at once you can run 'https://github.com/Andrwe/privoxy-blocklist/blob/main/helper/install_deps.sh'"
+            info "To install all dependencies at once you can run 'https://raw.githubusercontent.com/Andrwe/privoxy-blocklist/main/helper/install_deps.sh'"
             exit 1
         fi
     done
