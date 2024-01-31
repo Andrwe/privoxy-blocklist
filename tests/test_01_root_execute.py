@@ -1,6 +1,5 @@
 """Test execution as root."""
 
-
 from pathlib import Path
 from shutil import copyfile, copymode, which
 
