@@ -64,5 +64,9 @@ EOF
     fi
     exit 0
 fi
+if exists opkg; then
+    opkg update
+    opkg install privoxy bash sed grep wget-ssl
+fi
 echo "no install command found"
 exit 1
