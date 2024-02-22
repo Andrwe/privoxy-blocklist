@@ -10,7 +10,7 @@ content_removed = [
     'data-role="tile-ads-module"',  # attribute exact match
     'onclick="content.ad/"',  # attribute contain match
     'class="adDisplay-module_foobar"',  # attribute startswith match
-    "onclick=\"location.href='http://www.reimageplus.com/foobar'",  # attribute startswith match
+    'href="https://www.reimageplus.com/foobar"',  # attribute startswith match
 ]
 content_exists = [
     "ajlkl",  # should exist, although one element is removed by privoxy
