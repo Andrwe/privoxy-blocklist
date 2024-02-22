@@ -5,9 +5,13 @@ set -e
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 GIT_DIR="$(dirname "${SCRIPT_DIR}")"
 os="ubuntu"
+interactive=0
 
-while getopts ":o:r" opt; do
+while getopts ":io:r" opt; do
     case "${opt}" in
+        "i")
+            interactive=1
+            ;;
         "o")
             os="${OPTARG}"
             shift 2
@@ -47,4 +51,8 @@ if [ "${rebuild}" = "true" ] || ! docker image ls -q "${img_tag}" | grep -vq '^$
     cd -
 fi
 
-docker run --rm -w /app -v "${GIT_DIR}:/app" -v "${pytest_cache}:/pytest_cache" "${img_tag}" "${@:-./tests}"
+if [ "${interactive}" -eq 0 ]; then
+    docker run --rm -w /app -v "${GIT_DIR}:/app" -v "${pytest_cache}:/pytest_cache" "${img_tag}" "${@:-./tests}"
+else
+    docker run -ti --rm -w /app -v "${GIT_DIR}:/app" -v "${pytest_cache}:/pytest_cache" --entrypoint /bin/bash "${img_tag}"
+fi
