@@ -5,12 +5,16 @@ from shutil import copyfile, copymode, which
 
 import config
 import requests
-from conftest import check_in, check_not_in
+from conftest import check_in, check_not_in, check_privoxy_config
+from pytestshellutils.customtypes import EnvironDict
+from pytestshellutils.shell import Subprocess
 
 
-def test_config_generator(shell, privoxy_blocklist) -> None:
+def test_config_generator(
+    shell: Subprocess, privoxy_blocklist: str, privoxy_blocklist_config: str
+) -> None:
     """Test config generator with default path."""
-    config_file = Path("/etc/privoxy-blocklist.conf")
+    config_file = Path(privoxy_blocklist_config)
     if config_file.exists():
         config_file.unlink()
     ret = shell.run(privoxy_blocklist)
@@ -19,7 +23,9 @@ def test_config_generator(shell, privoxy_blocklist) -> None:
     assert config_file.exists()
 
 
-def test_custom_config_generator(shell, tmp_path, privoxy_blocklist) -> None:
+def test_custom_config_generator(
+    shell: Subprocess, tmp_path: str, privoxy_blocklist: str
+) -> None:
     """Test config generator with custom path."""
     config_file = Path(f"{tmp_path}/privoxy-blocklist")
     if config_file.exists():
@@ -30,7 +36,9 @@ def test_custom_config_generator(shell, tmp_path, privoxy_blocklist) -> None:
     assert config_file.exists()
 
 
-def test_version_option(shell, tmp_path, privoxy_blocklist) -> None:
+def test_version_option(
+    shell: Subprocess, tmp_path: str, privoxy_blocklist: str
+) -> None:
     """Test version option."""
     ret = shell.run(privoxy_blocklist, "-V")
     assert ret.returncode == 0
@@ -41,13 +49,13 @@ def test_version_option(shell, tmp_path, privoxy_blocklist) -> None:
     cur_script = Path(privoxy_blocklist)
     copyfile(cur_script, tmp_script)
     copymode(cur_script, tmp_script)
-    ret = shell.run("sed", "-i", "s/<main>/0.0.1/", str(tmp_script))
+    shell.run("sed", "-i", "s/<main>/0.0.1/", str(tmp_script))
     ret = shell.run(str(tmp_script), "-V")
     assert ret.returncode == 0
     assert ret.stdout == "Version: 0.0.1\n"
 
 
-def test_filter_check(shell, privoxy_blocklist) -> None:
+def test_filter_check(shell: Subprocess, privoxy_blocklist: str) -> None:
     """Test filtertype check."""
     cmd = [privoxy_blocklist, "-f", "bla"]
     ret_script = shell.run(*cmd)
@@ -56,16 +64,16 @@ def test_filter_check(shell, privoxy_blocklist) -> None:
     assert "Unknown filters: bla" in ret_script.stderr.strip()
 
 
-def test_next_run(shell, privoxy_blocklist, filtertypes) -> None:
+def test_next_run(
+    shell: Subprocess, privoxy_blocklist: str, filtertypes: list[str]
+) -> None:
     """Test followup runs."""
     cmd = [privoxy_blocklist]
     for filtertype in filtertypes:
         cmd.extend(["-f", filtertype])
     ret_script = shell.run(*cmd)
     assert ret_script.returncode == 0
-    ret_privo = shell.run(
-        "/usr/sbin/privoxy", "--no-daemon", "--config-test", "/etc/privoxy/config"
-    )
+    ret_privo = check_privoxy_config()
     assert ret_privo.returncode == 0
 
 
@@ -114,7 +122,9 @@ def test_content_exists(start_privoxy, webserver) -> None:
 
 
 # must be second last test as it will generate unpredictable privoxy configurations
-def test_predefined_custom_config_generator(shell, privoxy_blocklist) -> None:
+def test_predefined_custom_config_generator(
+    shell: Subprocess, privoxy_blocklist: str
+) -> None:
     """Run tests for all pre-defined configs."""
     test_config_dir = Path(__file__).parent / "configs"
     for config_file in test_config_dir.iterdir():
@@ -129,7 +139,7 @@ def test_predefined_custom_config_generator(shell, privoxy_blocklist) -> None:
 
 
 # must be last test as it will uninstall dependencies and check error handling
-def test_missing_deps(shell, privoxy_blocklist) -> None:
+def test_missing_deps(shell: Subprocess, privoxy_blocklist: str) -> None:
     """Test error when dependency is missing."""
     if which("apk"):
         ret_pkg = shell.run("apk", "del", "privoxy")
@@ -139,7 +149,16 @@ def test_missing_deps(shell, privoxy_blocklist) -> None:
             "remove",
             "--yes",
             "privoxy",
-            env={"DEBIAN_FRONTEND": "noninteractive"},
+            env=EnvironDict({"DEBIAN_FRONTEND": "noninteractive"}),
+        )
+    elif which("opkg"):
+        Path("/var/lock").mkdir()
+        ret_pkg = shell.run(
+            "opkg",
+            "remove",
+            "--force-remove",
+            "--autoremove",
+            "privoxy",
         )
     assert ret_pkg.returncode == 0
     ret_script = shell.run(privoxy_blocklist)
@@ -175,6 +194,7 @@ def run_request(
         proxies={f"{scheme}": "http://localhost:8118"},
         timeout=10,
         verify="/etc/ssl/certs/",
+        allow_redirects=False,
     )
     # run assert here to see affected URL in assertion
     assert resp.status_code in expected_code

@@ -3,12 +3,13 @@
 import os
 from pathlib import Path
 from re import search
+from tempfile import mkdtemp
 from typing import Generator, Optional
 
 import pytest
 import requests
 from pytest import StashKey
-from pytestshellutils.shell import Daemon
+from pytestshellutils.shell import Daemon, ProcessResult, Subprocess
 from urllib3.util import Url, parse_url
 
 phase_report_key = StashKey[int]()
@@ -45,6 +46,17 @@ def debug_enabled() -> bool:
     )
 
 
+def is_openwrt():
+    """Check if current OS is OpenWRT based."""
+    os_release_file = Path("/etc/os-release")
+    if not os_release_file.exists():
+        return False
+    os_release_content = os_release_file.read_text(encoding="UTF-8")
+    if search(r'ID_LIKE=".*(?<="|\s)openwrt(?="|\s).*"', os_release_content):
+        return True
+    return False
+
+
 def check_in(needle: str, haystack: str) -> bool:
     """Check given haystack for given string."""
     return needle in haystack
@@ -53,6 +65,33 @@ def check_in(needle: str, haystack: str) -> bool:
 def check_not_in(needle: str, haystack: str) -> bool:
     """Check that given string is not in given text."""
     return needle not in haystack
+
+
+def _get_privoxy_args(shell: Subprocess) -> list[str]:
+    """Return arguments for running Privoxy."""
+    config_path = "/etc/privoxy/config"
+    privoxy_args = ["--no-daemon", "--user", "privoxy"]
+    if is_openwrt():
+        config_path = "/var/etc/privoxy.conf"
+        script_path = f"{mkdtemp()}/generate_config.sh"
+        Path(script_path).write_text(
+            "source $IPKG_INSTROOT/lib/functions.sh; source /etc/rc.d/K10privoxy; _uci2conf",
+            encoding="UTF-8",
+        )
+        assert shell.run("/bin/ash", script_path).returncode == 0
+    assert Path(config_path).exists()
+    privoxy_args.append(config_path)
+    return privoxy_args
+
+
+def check_privoxy_config() -> ProcessResult:
+    """Test start of privoxy."""
+    # not using shell-fixture to simplify call of this function
+    shell = Subprocess()
+    command = ["/usr/sbin/privoxy", "--config-test"]
+    command.extend(_get_privoxy_args(shell))
+    # privoxy must run as privoxy to suit apparmor-config on ubuntu
+    return shell.run(*command)
 
 
 # based on
@@ -72,6 +111,12 @@ def pytest_runtest_makereport(item: pytest.Item):
             item.parent.stash[phase_report_key] += 1
 
     return report
+
+
+@pytest.fixture(scope="module")
+def get_privoxy_args(shell: Subprocess) -> list[str]:
+    """Fixture to return arguments for running Privoxy."""
+    return _get_privoxy_args(shell)
 
 
 @pytest.fixture
@@ -122,7 +167,20 @@ def privoxy_blocklist() -> str:
 
 
 @pytest.fixture(scope="module")
-def start_privoxy(request: pytest.FixtureRequest) -> Generator[bool, None, None]:
+def privoxy_blocklist_config() -> str:
+    """Return the path to privoxy-blocklist.conf."""
+    config_path = "/etc/privoxy-blocklist.conf"
+    if os.uname().sysname == "Darwin":
+        config_path = "/usr/local/etc/privoxy-blocklist.conf"
+    if is_openwrt():
+        config_path = "/etc/config/privoxy-blocklist.conf"
+    return config_path
+
+
+@pytest.fixture(scope="module")
+def start_privoxy(
+    request: pytest.FixtureRequest, get_privoxy_args: list[str]
+) -> Generator[bool, None, None]:
     """Test start of privoxy."""
     if debug_enabled():
         for env in ["USER", "UID", "PWD"]:
@@ -148,7 +206,7 @@ def start_privoxy(request: pytest.FixtureRequest) -> Generator[bool, None, None]
     # privoxy must run as privoxy to suit apparmor-config on ubuntu
     run = Daemon(
         script_name="/usr/sbin/privoxy",
-        base_script_args=["--no-daemon", "--user", "privoxy"],
+        base_script_args=get_privoxy_args,
         cwd="/etc/privoxy",
         start_timeout=10,
         check_ports=[8118],

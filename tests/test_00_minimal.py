@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from conftest import check_privoxy_config
+
 
 def test_permissions() -> None:
     """Test file permissions."""
@@ -19,6 +21,7 @@ def test_permissions() -> None:
         "README.md",
         "tests/conftest.py",
         "tests/Dockerfile_alpine",
+        "tests/Dockerfile_openwrt",
         "tests/Dockerfile_ubuntu",
         "tests/requirements.txt",
         "tests/setup.cfg",
@@ -38,7 +41,7 @@ def test_permissions() -> None:
         assert path.stat().st_mode in [0o100644, 0o100664, 0o100666]
 
 
-def test_privoxy_setup(shell) -> None:
+def test_privoxy_setup() -> None:
     """Test if privoxy is set up correctly."""
     config_dir = Path("/etc/privoxy/")
     for path in config_dir.iterdir():
@@ -47,7 +50,5 @@ def test_privoxy_setup(shell) -> None:
         if not path.suffix == ".new":
             continue
         assert Path(str(path).replace(".new", "")).exists()
-    ret = shell.run(
-        "/usr/sbin/privoxy", "--no-daemon", "--config-test", "/etc/privoxy/config"
-    )
+    ret = check_privoxy_config()
     assert ret.returncode == 0
