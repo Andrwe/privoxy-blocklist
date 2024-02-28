@@ -1,0 +1,26 @@
+FROM		openwrt/rootfs
+# hadolint ignore=DL3018
+RUN		mkdir /var/lock /var/run
+RUN		opkg update \
+		&& opkg install \
+			curl \
+			gcc \
+			make \
+			python3 \
+			python3-pip \
+			python3-dev \
+			sudo \
+			vim-full
+COPY		tests/requirements.txt /requirements.txt
+RUN		pip install --no-cache-dir -qr /requirements.txt \
+		&& rm -f /requirements.txt
+RUN		mkdir /pytest_cache && chown root:root /pytest_cache
+COPY		helper/install_deps.sh /install_deps.sh
+RUN		/install_deps.sh \
+		&& rm -f /install_deps.sh \
+		&& /etc/rc.d/K10privoxy stop
+RUN	 	rm -rf /tmp/* || true
+RUN		echo "        list    listen_address  '127.0.0.1:8118'" >> /etc/config/privoxy
+RUN		echo "        list    permit_access           '127.0.0.0/24'" >> /etc/config/privoxy
+WORKDIR		/app
+ENTRYPOINT	["pytest", "-v", "-s", "-o", "cache_dir=/pytest_cache", "--color", "yes"]

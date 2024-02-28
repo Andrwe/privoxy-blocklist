@@ -1,7 +1,6 @@
 #!/bin/sh
 
 set -e
-
 exists() {
     if command -v "$1" > /dev/null 2>&1; then
         return 0
@@ -10,7 +9,12 @@ exists() {
 }
 
 if exists apk; then
-    apk add --no-cache privoxy sed grep bash wget
+    apk add --no-cache \
+        bash \
+        grep \
+        privoxy \
+        sed \
+        wget
     if ! grep -q '^debug' /etc/privoxy/config; then
         cat >> /etc/privoxy/config << EOF
 # activate debugging of rules & access log
@@ -22,7 +26,12 @@ fi
 if exists apt-get; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq -y
-    apt-get install -y privoxy sed grep bash wget
+    apt-get install -y \
+        bash \
+        grep \
+        privoxy \
+        sed \
+        wget
     if [ -n "${HTTPS_SUPPORT:-}" ]; then
         # prepare HTTPS inspection
         mkdir -p /etc/privoxy/CA/certs /usr/local/share/ca-certificates/privoxy
@@ -61,6 +70,52 @@ if exists pacman; then
 # activate debugging of rules & access log
 debug 8704
 EOF
+    fi
+    exit 0
+fi
+if exists opkg; then
+    if ! [ -e "/var/lock" ]; then
+        mkdir /var/lock/
+    fi
+    if ! [ -e "/var/run" ]; then
+        mkdir /var/run/
+    fi
+    opkg update
+    opkg install \
+        bash \
+        grep \
+        privoxy \
+        sed \
+        wget-ssl
+
+    # openwrt version not compiled with HTTPS support, thus just keeping for future reference
+    if [ -n "${HTTPS_SUPPORT:-}" ]; then
+        # prepare HTTPS inspection
+        opkg install openssl-util
+        privoxy_cert_dir="/etc/config/privoxy_certs"
+        cert_path="${privoxy_cert_dir}/privoxy_cacert.crt"
+        mkdir -p "${privoxy_cert_dir}"
+        openssl req -new -x509 -extensions v3_ca -keyout "${privoxy_cert_dir}/cakey.pem" -out "${cert_path}" -days 3650 -noenc -batch
+        cert_hash="$(openssl x509 -hash -noout -in "${cert_path}").0"
+        ln -s "${cert_path}" "/etc/ssl/certs/privoxy_cacert.crt"
+        ln -s "/etc/ssl/certs/privoxy_cacert.crt" "/etc/ssl/certs/${cert_hash}"
+        chown -R privoxy "${privoxy_cert_dir}"
+        if ! grep -q '^{+https-inspection}' /etc/config/privoxy_https.action; then
+            cat >> /etc/config/privoxy_https.action << EOF
+{+https-inspection}
+.
+EOF
+        fi
+        if ! grep -q '^\s*option\s*ca-directory' /etc/config/privoxy; then
+            cat >> /etc/config/privoxy << EOF
+        option  ca-directory            '${privoxy_cert_dir}'
+        option  certificate-directory   '${privoxy_cert_dir}'
+        option  trusted-cas-file        '/etc/ssl/certs/ca-certificates.crt'
+        option  ca-cert-file            'privoxy_cacert.crt'
+        option  ca-key-file             'cakey.pem'
+        list    actionsfile             '/etc/config/privoxy_https.action'
+EOF
+        fi
     fi
     exit 0
 fi

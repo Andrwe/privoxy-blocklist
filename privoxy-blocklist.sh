@@ -28,7 +28,13 @@
 set -euo pipefail
 
 # dependencies
-DEPENDS=('privoxy' 'sed' 'grep' 'bash' 'wget')
+DEPENDS=(
+    'bash'
+    'grep'
+    'privoxy'
+    'sed'
+    'wget'
+)
 
 # types of content filters
 #   used in conftest.py, thus keep structure
@@ -65,6 +71,52 @@ function usage() {
     echo "      -r:         Remove all lists build by this script."
 }
 
+# shellcheck disable=SC2317  # function is called in case of FILTERS not empty
+function activate_config() {
+    local file_name file_path file_type option
+    file_path="$1"
+    file_name="$(basename "${file_path}")"
+    case "${file_name}" in
+        *"action")
+            file_type="action"
+            option="actionsfile"
+            ;;
+        *"filter")
+            file_type="filter"
+            option="filterfile"
+            ;;
+    esac
+    copy "${file_path}" "${PRIVOXY_DIR}"
+    if ! grep -q "${file_name}" "${PRIVOXY_CONF}"; then
+        debug 0 "Modifying ${PRIVOXY_CONF} ..."
+        # ensure generated config is above user.* to allow overriding
+        if [ "${OS_FLAVOR}" = "openwrt" ]; then
+            sed "s%^\(\s*#*\s*list\s\s*${option}\s\s*'user\.${file_type}'\)%\tlist\t${option}\t'${PRIVOXY_DIR}/${file_name}'\n\1%" "${PRIVOXY_CONF}" > "${TMPDIR}/config"
+        else
+            sed "s/^\(#*\s*${option} user\.${file_type}\)/${option} ${file_name}\n\1/" "${PRIVOXY_CONF}" > "${TMPDIR}/config"
+        fi
+        debug 0 "... modification done."
+        debug 0 "Installing new config ..."
+        copy "${TMPDIR}/config" "${PRIVOXY_CONF}"
+        debug 0 "... installation done"
+    fi
+}
+
+# shellcheck disable=SC2317  # function is called in case of FILTERS not empty
+function copy() {
+    # copy source to target while ensuring correct permissions
+    local full_target_path source_path target_path
+    source_path="$1"
+    target_path="$2"
+    full_target_path="${target_path}"
+    if [ -d "${target_path}" ]; then
+        full_target_path="${target_path}/$(basename "${source_path}")"
+    fi
+    cp "${VERBOSE[@]}" "${source_path}" "${target_path}"
+    chown "${PRIVOXY_USER}:${PRIVOXY_GROUP}" "${full_target_path}"
+    chmod a+x "${full_target_path}"
+}
+
 function get_config_path() {
     if [ -z "${SCRIPTCONF:-}" ]; then
         # script config-file
@@ -76,10 +128,53 @@ function get_config_path() {
                 SCRIPTCONF="/etc/privoxy-blocklist.conf"
                 ;;
         esac
+        if [ "${OS_FLAVOR}" = "openwrt" ]; then
+            SCRIPTCONF="/etc/config/privoxy-blocklist.conf"
+        fi
+        # backwards compatibility
         if [ -f "/etc/conf.d/privoxy-blacklist" ]; then
             SCRIPTCONF="/etc/conf.d/privoxy-blacklist"
         fi
     fi
+}
+
+# shellcheck disable=SC2317  # function is called in case of FILTERS not empty
+function get_user_group() {
+    # function to unify stat()
+    if ! [ -e /etc/privoxy/default.action ]; then
+        # Fallback if reference file does not exist
+        echo "privoxy root"
+        return
+    fi
+    if ! type stat &> /dev/null; then
+        # ls-based approach when stat is missing, quite fuzzy
+        # shellcheck disable=SC2012
+        ls -l "/etc/privoxy/default.action" | sed 's/^[^ ]*\s\s*[0-9][0-9]*\s\s*\([^ ][^ ]*\)\s\s*\([^ ][^ ]*\)\s\s*.*/\1 \2/'
+    else
+        if LANG=C stat --help |& grep ' \-c' | grep -q '\-\-format'; then
+            # Linux stat-command
+            stat -c "%U %G" /etc/privoxy/default.action
+        elif LANG=C stat --help |& grep ' \-f' | grep -q 'format'; then
+            # MacOS stat-command
+            local user_id group_id
+            user_id="$(stat -f "%u" /etc/privoxy/default.action)"
+            group_id="$(stat -f "%g" /etc/privoxy/default.action)"
+            echo "$(getent passwd | grep ":${user_id}:" | cut -d':' -f1) $(getent group | grep ":${group_id}:" | cut -d':' -f1)"
+        else
+            # fallback
+            echo "privoxy root"
+        fi
+    fi
+}
+
+# shellcheck disable=SC2317  # function is called in case of FILTERS not empty
+function get_user() {
+    get_user_group | cut -d' ' -f1
+}
+
+# shellcheck disable=SC2317  # function is called in case of FILTERS not empty
+function get_group() {
+    get_user_group | cut -d' ' -f2
 }
 
 function prepare() {
@@ -91,7 +186,7 @@ function prepare() {
 
     for dep in "${DEPENDS[@]}"; do
         if ! type -p "${dep}" > /dev/null; then
-            error "The command ${dep} can't be found. Please install the package providing ${dep} and run $0 again. Exit"
+            error "The command '${dep}' can't be found. Please install the package providing '${dep}' and run $0 again. Exit"
             info "To install all dependencies at once you can run 'https://raw.githubusercontent.com/Andrwe/privoxy-blocklist/main/helper/install_deps.sh'"
             exit 1
         fi
@@ -103,7 +198,8 @@ function prepare() {
 
     if [[ ! -d "$(dirname "${SCRIPTCONF}")" ]]; then
         info "creating missing config directory '$(dirname "${SCRIPTCONF}")'"
-        install -d -m 755 "$(dirname "${SCRIPTCONF}")"
+        mkdir -p "$(dirname "${SCRIPTCONF}")"
+        chmod 755 "$(dirname "${SCRIPTCONF}")"
     fi
 
     if [[ ! -f "${SCRIPTCONF}" ]]; then
@@ -183,15 +279,15 @@ EOF
                 PRIVOXY_CONF="/etc/privoxy/config"
                 ;;
         esac
-        info "\$PRIVOXY_CONF isn't set, falling back to '${PRIVOXY_CONF}'"
+        if [ "${OS_FLAVOR}" = "openwrt" ]; then
+            PRIVOXY_CONF="/etc/config/privoxy"
+        fi
     fi
     if [[ -z "${PRIVOXY_USER:-}" ]]; then
-        PRIVOXY_USER="privoxy"
-        info "\$PRIVOXY_USER isn't set, falling back to 'privoxy'"
+        PRIVOXY_USER="$(get_user)"
     fi
     if [[ -z "${PRIVOXY_GROUP:-}" ]]; then
-        PRIVOXY_GROUP="root"
-        info "\$PRIVOXY_GROUP isn't set, falling back to 'root'"
+        PRIVOXY_GROUP="$(get_group)"
     fi
 
     # set privoxy config dir
@@ -244,8 +340,8 @@ function main() {
 
         # download list
         debug 0 "Downloading ${url} ..."
-        wget -t 3 --no-check-certificate -O "${file}" "${url}" > "${TMPDIR}/wget-${url//\//#}.log" 2>&1
-        debug 2 "$(cat "${TMPDIR}/wget-${url//\//#}.log")"
+        wget -t 3 --no-check-certificate -O "${file}" "${url}" > "${TMPDIR}/wget-${url//\//\#}.log" 2>&1
+        debug 2 "$(cat "${TMPDIR}/wget-${url//\//\#}.log")"
         debug 0 ".. downloading done."
         if ! grep -qE '^.*\[Adblock.*\].*$' "${file}"; then
             info "The list recieved from ${url} does not contain AdblockPlus list header. Try to process anyway."
@@ -685,26 +781,10 @@ function main() {
         debug 1 "... created actionfile for ${list}."
 
         # install Privoxy actionsfile
-        install -o "${PRIVOXY_USER}" -g "${PRIVOXY_GROUP}" "${VERBOSE[@]}" "${actionfile}" "${PRIVOXY_DIR}"
-        if ! grep -q "$(basename "${actionfile}")" "${PRIVOXY_CONF}"; then
-            debug 0 "Modifying ${PRIVOXY_CONF} ..."
-            sed "s/^actionsfile user\.action/actionsfile $(basename "${actionfile}")\nactionsfile user.action/" "${PRIVOXY_CONF}" > "${TMPDIR}/config"
-            debug 0 "... modification done."
-            debug 0 "Installing new config ..."
-            install -o "${PRIVOXY_USER}" -g "${PRIVOXY_GROUP}" "${VERBOSE[@]}" "${TMPDIR}/config" "${PRIVOXY_CONF}"
-            debug 0 "... installation done"
-        fi
+        activate_config "${actionfile}"
 
         # install Privoxy filterfile
-        install -o "${PRIVOXY_USER}" -g "${PRIVOXY_GROUP}" "${VERBOSE[@]}" "${filterfile}" "${PRIVOXY_DIR}"
-        if ! grep -q "$(basename "${filterfile}")" "${PRIVOXY_CONF}"; then
-            debug 0 "Modifying ${PRIVOXY_CONF} ..."
-            sed "s/^\(#*\)filterfile user\.filter/filterfile $(basename "${filterfile}")\n\1filterfile user.filter/" "${PRIVOXY_CONF}" > "${TMPDIR}/config"
-            debug 0 "... modification done."
-            debug 0 "Installing new config ..."
-            install -o "${PRIVOXY_USER}" -g "${PRIVOXY_GROUP}" "${VERBOSE[@]}" "${TMPDIR}/config" "${PRIVOXY_CONF}"
-            debug 0 "... installation done"
-        fi
+        activate_config "${filterfile}"
 
         debug 0 "... ${url} installed successfully."
     done
@@ -715,7 +795,8 @@ function lock() {
     PID_FILE="${TMPDIR}/${TMPNAME}.lock"
 
     # create temporary directory and lock file
-    install -d -m700 "${TMPDIR}"
+    mkdir -p "${TMPDIR}"
+    chmod 700 "${TMPDIR}"
 
     # check lock file
     if [ -f "${PID_FILE}" ]; then
@@ -753,6 +834,21 @@ method="main"
 OS="$(uname)"
 OPT_FILTERS=()
 
+# ID_LIKE is mainly used to check for openwrt and set via os-release
+ID_LIKE="unset"
+if [ -e /etc/os-release ]; then
+    # shellcheck disable=SC1091
+    source /etc/os-release
+fi
+case "${ID_LIKE}" in
+    *"openwrt"*)
+        OS_FLAVOR="openwrt"
+        ;;
+    *)
+        OS_FLAVOR="any"
+        ;;
+esac
+
 # loop for options
 while getopts ":c:f:hrqv:V" opt; do
     case "${opt}" in
@@ -770,7 +866,9 @@ while getopts ":c:f:hrqv:V" opt; do
             ;;
         "v")
             OPT_DBG="${OPTARG}"
-            VERBOSE=("-v")
+            if [ "${OS_FLAVOR}" != "openwrt" ]; then
+                VERBOSE=("-v")
+            fi
             ;;
         "V")
             # <main> is replaced by release process

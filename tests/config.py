@@ -65,7 +65,7 @@ config_checks = {
         ),
         (
             check_in,
-            "‘/tmp/privoxy-blocklist.sh/easylist.txt’ saved",
+            "Resolving easylist-downloads.adblockplus.org",
         ),
         (
             check_in,

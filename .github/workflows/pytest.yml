@@ -10,8 +10,8 @@ name: "Test Suite"
   workflow_dispatch:
 
 jobs:
-  pytest:
-    name: Pytest
+  pytest-ubuntu:
+    name: Pytest-Ubuntu
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -41,3 +41,78 @@ jobs:
           sudo pkill -9 privoxy || true
           # run pytest as sudo to allow pytestshellutils to stop privoxy
           sudo --preserve-env=ACTIONS_STEP_DEBUG,RUNNER_DEBUG pytest -v -s --color yes tests/
+
+  pytest-alpine:
+    name: Pytest-Alpine
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    container:
+      image: alpine:latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: prepare environment
+        run: |
+          apk add --no-cache --quiet build-base linux-headers py3-pip python3-dev
+          python3 -m venv .venv
+          . .venv/bin/activate
+          pip install --no-cache-dir -qr tests/requirements.txt
+          sh helper/install_deps.sh
+          bash -c "for f in /etc/privoxy/*.new; do cp -p \$f \${f%.*};done"
+
+      - name: run pytest
+        env:
+          ACTIONS_STEP_DEBUG: ${{ vars.ACTIONS_STEP_DEBUG }}
+          RUNNER_DEBUG: ${{ runner.debug }}
+        run: |
+          . .venv/bin/activate
+          pytest -v -s --color yes tests/
+
+  pytest-openwrt:
+    name: Pytest-OpenWRT
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    container:
+      image: openwrt/rootfs:latest
+
+    steps:
+      - name: Prepare OPKG
+        run: |
+          mkdir -p /var/lock /var/run
+          opkg update
+      - name: Checkout repository (custom)
+        # required as 'node dist/index.js' succeeds with errors
+        continue-on-error: true
+        env:
+          INPUT_TOKEN: ${{ github.token }}
+        run: |
+          set -x
+          opkg install git-http node-npm
+          git clone -b "v4" https://github.com/actions/checkout.git /tmp/checkout
+          cd /tmp/checkout
+          npm install
+          node dist/index.js
+          echo "end: $?"
+          ls -l "${GITHUB_WORKSPACE}"
+
+      - name: prepare environment
+        run: |
+          opkg install curl gcc make python3 python3-pip python3-dev
+          pip install --no-cache-dir -qr tests/requirements.txt
+          sh helper/install_deps.sh
+          /etc/rc.d/K10privoxy stop || true
+          echo "        list    listen_address  '127.0.0.1:8118'" >> /etc/config/privoxy
+          echo "        list    permit_access           '127.0.0.0/24'" >> /etc/config/privoxy
+
+      - name: run pytest
+        env:
+          ACTIONS_STEP_DEBUG: ${{ vars.ACTIONS_STEP_DEBUG }}
+          RUNNER_DEBUG: ${{ runner.debug }}
+        run: |
+          pytest -v -s --color yes tests/
