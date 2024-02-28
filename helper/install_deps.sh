@@ -83,9 +83,7 @@ if exists opkg; then
     opkg update
     opkg install \
         bash \
-        coreutils-install \
         grep \
-        openssl-util \
         privoxy \
         sed \
         wget-ssl
@@ -93,6 +91,7 @@ if exists opkg; then
     # openwrt version not compiled with HTTPS support, thus just keeping for future reference
     if [ -n "${HTTPS_SUPPORT:-}" ]; then
         # prepare HTTPS inspection
+        opkg install openssl-util
         privoxy_cert_dir="/etc/config/privoxy_certs"
         cert_path="${privoxy_cert_dir}/privoxy_cacert.crt"
         mkdir -p "${privoxy_cert_dir}"

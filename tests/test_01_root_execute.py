@@ -152,7 +152,9 @@ def test_missing_deps(shell: Subprocess, privoxy_blocklist: str) -> None:
             env=EnvironDict({"DEBIAN_FRONTEND": "noninteractive"}),
         )
     elif which("opkg"):
-        Path("/var/lock").mkdir()
+        lock_path = Path("/var/lock")
+        if not lock_path.exists():
+            lock_path.mkdir()
         ret_pkg = shell.run(
             "opkg",
             "remove",

@@ -97,7 +97,6 @@ jobs:
           git clone -b "v4" https://github.com/actions/checkout.git /tmp/checkout
           cd /tmp/checkout
           npm install
-          npm run build
           node dist/index.js
           echo "end: $?"
           ls -l "${GITHUB_WORKSPACE}"

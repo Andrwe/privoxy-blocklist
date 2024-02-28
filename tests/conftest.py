@@ -182,27 +182,6 @@ def start_privoxy(
     request: pytest.FixtureRequest, get_privoxy_args: list[str]
 ) -> Generator[bool, None, None]:
     """Test start of privoxy."""
-    if debug_enabled():
-        for env in ["USER", "UID", "PWD"]:
-            print(env, ":", os.environ.get(env))
-        for path in [
-            "/etc/privoxy",
-            "/etc/privoxy/CA",
-            "/etc/privoxy/CA/certs",
-            "/etc/privoxy/CA/cakey.pem",
-            "/etc/privoxy/CA/cacert.crt",
-        ]:
-            path_obj = Path(path)
-            if not path_obj.exists():
-                print(path, " does not exist. ----------------")
-                continue
-            print(
-                path,
-                ":",
-                oct(path_obj.stat().st_mode),
-                path_obj.stat().st_uid,
-                path_obj.stat().st_gid,
-            )
     # privoxy must run as privoxy to suit apparmor-config on ubuntu
     run = Daemon(
         script_name="/usr/sbin/privoxy",
