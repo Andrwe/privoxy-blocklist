@@ -19,12 +19,34 @@ Due to this behaviour the script must run as root user to be able to modify the 
 
 Either run `privoxy-blocklist.sh` manually with root privileges (e.g., `sudo privoxy-blocklist.sh`) or via root cronjob.
 
+### Content Filter
+
+By default `privoxy-blocklist` only generates URL based filter rules as content filtering may slowdown proxying a lot.
+During tests I had requests that took up to 4 minutes.
+
 To activate content filters specify the corresponding filter types either in the configuraiton file or via cli-flag `-f`, e.g.:
 
 ```bash
 privoxy-blocklist.sh -f attribute_global_name -f attribute_global_exact -f attribute_global_contain -f attribute_global_startswith -f attribute_global_endswith -f class_global -f id_global
 ```
 To see all supported filter types check the help `privoxy-blocklist.sh -h`.
+
+Content filtering for HTTPS URLs requires Privoxy to be compiled with [`FEATURE_HTTPS_INSPECTION`](https://www.privoxy.org/user-manual/installation.html#INSTALLATION-SOURCE) and [HTTPS inspection](https://www.privoxy.org/user-manual/config.html#HTTPS-INSPECTION-DIRECTIVES) configured.
+Example commands for the configuration can be found in [install_deps.sh](https://github.com/Andrwe/privoxy-blocklist/blob/main/helper/install_deps.sh)
+
+Without `FEATURE_HTTPS_INSPECTION` content filtering only works for unencrypted HTTP-URLs.
+
+If the feature is enabled can be tested on http://config.privoxy.org/show-status. Just open with page via your Privoxy and search for `FEATURE_HTTPS_INSPECTION`.
+
+Some distributions provide Privoxy with HTTPS support enabled.
+The following table shows support status of some tested distributions:
+
+| Distribution | HTTPS Support |
+| ------------ | ------------- |
+| alpine |   no   |
+| OpenWRT |   no   |
+| TurrisOS |   no   |
+| Ubuntu |   yes   |
 
 ## Installation
 
