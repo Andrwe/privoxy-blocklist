@@ -13,7 +13,7 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - uses: marocchino/validate-dependabot@v2
+      - uses: marocchino/validate-dependabot@v3
         id: validate
       - uses: marocchino/sticky-pull-request-comment@v2
         if: always()
