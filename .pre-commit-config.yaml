@@ -39,6 +39,8 @@ repos:
           - 'DL3008'
           - '--ignore'
           - 'DL3013'
+        types: [file]
+        files: "^tests/Dockerfile_.*"
   - repo: https://github.com/PyCQA/isort
     rev: 5.13.2
     hooks:
