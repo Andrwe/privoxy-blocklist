@@ -39,6 +39,10 @@ repos:
           - 'DL3008'
           - '--ignore'
           - 'DL3013'
+          - '--ignore'
+          - 'DL3059'
+        types: [file]
+        files: "^tests/Dockerfile_.*"
   - repo: https://github.com/PyCQA/isort
     rev: 5.13.2
     hooks:
@@ -76,7 +80,7 @@ repos:
           - requests
           - types-requests
   - repo: https://github.com/sirosen/check-jsonschema
-    rev: 0.28.0
+    rev: 0.28.1
     hooks:
       - id: check-github-workflows
       - id: check-github-actions
