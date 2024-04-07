@@ -79,7 +79,7 @@ jobs:
       actions: read
       contents: write
     container:
-      image: openwrt/rootfs:latest
+      image: openwrt/rootfs:x86-64-23.05.3
 
     steps:
       - name: Prepare OPKG

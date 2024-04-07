@@ -11,6 +11,7 @@ while getopts ":io:r" opt; do
     case "${opt}" in
         "i")
             interactive=1
+            shift
             ;;
         "o")
             os="${OPTARG}"

@@ -1,4 +1,4 @@
-FROM		openwrt/rootfs
+FROM		openwrt/rootfs:x86-64-23.05.3
 # hadolint ignore=DL3018
 RUN		mkdir /var/lock /var/run
 RUN		opkg update \
