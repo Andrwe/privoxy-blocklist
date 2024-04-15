@@ -51,7 +51,7 @@ repos:
           - '--profile'
           - 'black'
   - repo: https://github.com/psf/black
-    rev: 24.3.0
+    rev: 24.4.0
     hooks:
       - id: black
   - repo: https://github.com/PyCQA/flake8
@@ -80,7 +80,7 @@ repos:
           - requests
           - types-requests
   - repo: https://github.com/sirosen/check-jsonschema
-    rev: 0.28.1
+    rev: 0.28.2
     hooks:
       - id: check-github-workflows
       - id: check-github-actions
