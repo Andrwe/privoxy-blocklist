@@ -121,6 +121,21 @@ def test_content_exists(start_privoxy, webserver) -> None:
         assert check_in(needle, response.text)
 
 
+# def test_remove(
+#    shell: Subprocess, privoxy_blocklist: str, privoxy_blocklist_config: str
+# ) -> None:
+#    """Run tests for removal of privoxy-blocklist configs."""
+#    ret = shell.run(privoxy_blocklist, "-r")
+#    print(ret)
+#    print(ret.stdout)
+#    print(ret.stderr)
+#    assert check_in("Do you really want to remove all build lists", ret.stdout)
+#    assert check_not_in("script.action", Path(privoxy_blocklist_config).read_text(
+# encoding="UTF-8"))
+#    assert check_not_in("script.filter", Path(privoxy_blocklist_config).read_text(
+# encoding="UTF-8"))
+
+
 # must be second last test as it will generate unpredictable privoxy configurations
 def test_predefined_custom_config_generator(
     shell: Subprocess, privoxy_blocklist: str
