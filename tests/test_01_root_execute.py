@@ -2,42 +2,50 @@
 
 from pathlib import Path
 from shutil import copyfile, copymode, which
+from subprocess import run
 
-import config
 import requests
-from conftest import check_in, check_not_in, check_privoxy_config
 from pytestshellutils.customtypes import EnvironDict
 from pytestshellutils.shell import Subprocess
 
+import config
+from conftest import check_in, check_not_in, check_privoxy_config
+
 
 def test_config_generator(
-    shell: Subprocess, privoxy_blocklist: str, privoxy_blocklist_config: str
+    shell: Subprocess,
+    privoxy_blocklist: str,
+    privoxy_blocklist_config: str,
 ) -> None:
     """Test config generator with default path."""
     config_file = Path(privoxy_blocklist_config)
     if config_file.exists():
         config_file.unlink()
     ret = shell.run(privoxy_blocklist)
-    assert ret.returncode == 2
+    assert ret.returncode == int(2)
     assert "Creating default one and exiting" in ret.stdout
     assert config_file.exists()
 
 
 def test_custom_config_generator(
-    shell: Subprocess, tmp_path: str, privoxy_blocklist: str
+    shell: Subprocess,
+    tmp_path: str,
+    privoxy_blocklist: str,
 ) -> None:
     """Test config generator with custom path."""
     config_file = Path(f"{tmp_path}/privoxy-blocklist")
     if config_file.exists():
         config_file.unlink()
     ret = shell.run(privoxy_blocklist, "-c", str(config_file))
-    assert ret.returncode == 2
+    assert ret.returncode == int(2)
     assert "Creating default one and exiting" in ret.stdout
     assert config_file.exists()
 
 
 def test_version_option(
-    shell: Subprocess, tmp_path: str, privoxy_blocklist: str
+    shell: Subprocess,
+    tmp_path: str,
+    privoxy_blocklist: str,
 ) -> None:
     """Test version option."""
     ret = shell.run(privoxy_blocklist, "-V")
@@ -60,12 +68,14 @@ def test_filter_check(shell: Subprocess, privoxy_blocklist: str) -> None:
     cmd = [privoxy_blocklist, "-f", "bla"]
     ret_script = shell.run(*cmd)
     assert ret_script.returncode == 1
-    assert "" == ret_script.stdout
+    assert ret_script.stdout == ""
     assert "Unknown filters: bla" in ret_script.stderr.strip()
 
 
 def test_next_run(
-    shell: Subprocess, privoxy_blocklist: str, filtertypes: list[str]
+    shell: Subprocess,
+    privoxy_blocklist: str,
+    filtertypes: list[str],
 ) -> None:
     """Test followup runs."""
     cmd = [privoxy_blocklist]
@@ -121,24 +131,41 @@ def test_content_exists(start_privoxy, webserver) -> None:
         assert check_in(needle, response.text)
 
 
-# def test_remove(
-#    shell: Subprocess, privoxy_blocklist: str, privoxy_blocklist_config: str
-# ) -> None:
-#    """Run tests for removal of privoxy-blocklist configs."""
-#    ret = shell.run(privoxy_blocklist, "-r")
-#    print(ret)
-#    print(ret.stdout)
-#    print(ret.stderr)
-#    assert check_in("Do you really want to remove all build lists", ret.stdout)
-#    assert check_not_in("script.action", Path(privoxy_blocklist_config).read_text(
-# encoding="UTF-8"))
-#    assert check_not_in("script.filter", Path(privoxy_blocklist_config).read_text(
-# encoding="UTF-8"))
+def test_remove(privoxy_blocklist: str, privoxy_config: str) -> None:
+    """Run tests for removal of privoxy-blocklist configs."""
+    process = run(
+        [privoxy_blocklist, "-r"],
+        capture_output=True,
+        input="n\n",
+        text=True,
+        check=True,
+    )
+    assert process.returncode == 0
+    assert check_in("script.action", Path(privoxy_config).read_text(encoding="UTF-8"))
+    assert check_in("script.filter", Path(privoxy_config).read_text(encoding="UTF-8"))
+    process = run(
+        [privoxy_blocklist, "-r"],
+        capture_output=True,
+        input="y\n",
+        text=True,
+        check=True,
+    )
+    assert process.returncode == 0
+    assert check_in("Lists removed.", process.stdout)
+    assert check_not_in(
+        "script.action",
+        Path(privoxy_config).read_text(encoding="UTF-8"),
+    )
+    assert check_not_in(
+        "script.filter",
+        Path(privoxy_config).read_text(encoding="UTF-8"),
+    )
 
 
 # must be second last test as it will generate unpredictable privoxy configurations
 def test_predefined_custom_config_generator(
-    shell: Subprocess, privoxy_blocklist: str
+    shell: Subprocess,
+    privoxy_blocklist: str,
 ) -> None:
     """Run tests for all pre-defined configs."""
     test_config_dir = Path(__file__).parent / "configs"
@@ -191,18 +218,27 @@ def test_privoxy_runtime_log() -> None:
 
 
 def run_requests(
-    start_privoxy, supported_schemes, urls: list[str], expected_code: list[int]
+    start_privoxy,
+    supported_schemes,
+    urls: list[str],
+    expected_code: list[int],
 ) -> None:
     """Run requests for all given urls and check for expected_code."""
     for url in urls:
         for scheme in supported_schemes:
             run_request(
-                start_privoxy, scheme=scheme, url=url, expected_code=expected_code
+                start_privoxy,
+                scheme=scheme,
+                url=url,
+                expected_code=expected_code,
             )
 
 
 def run_request(
-    start_privoxy, scheme: str, url: str, expected_code: list[int]
+    start_privoxy,
+    scheme: str,
+    url: str,
+    expected_code: list[int],
 ) -> requests.Response:
     """Run a request for given URL and return status_code."""
     assert start_privoxy

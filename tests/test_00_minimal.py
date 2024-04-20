@@ -10,21 +10,26 @@ def test_permissions() -> None:
     git_root = Path(__file__).parent.parent.absolute()
     executables = ["privoxy-blocklist.sh", "helper/install_deps.sh", "tests/run.sh"]
     non_executables = [
-        ".ci_config/bandit.yml",
-        ".ci_config/prospector.yaml",
         ".editorconfig",
+        ".github/dependabot.yml",
         ".github/release.yml",
+        ".github/workflows/dependabot_validate.yml",
         ".github/workflows/pytest.yml",
         ".github/workflows/release.yml",
+        ".gitignore",
         "LICENSE",
         ".pre-commit-config.yaml",
         "README.md",
+        "tests/config.py",
+        "tests/configs/debugging.conf",
+        "tests/configs/url_extended_config.conf",
         "tests/conftest.py",
         "tests/Dockerfile_alpine",
         "tests/Dockerfile_openwrt",
         "tests/Dockerfile_ubuntu",
         "tests/requirements.txt",
-        "tests/setup.cfg",
+        "tests/response.html",
+        "tests/ruff.toml",
         "tests/test_00_minimal.py",
         "tests/test_01_root_execute.py",
     ]
@@ -47,7 +52,7 @@ def test_privoxy_setup() -> None:
     for path in config_dir.iterdir():
         if not path.is_file():
             continue
-        if not path.suffix == ".new":
+        if path.suffix != ".new":
             continue
         assert Path(str(path).replace(".new", "")).exists()
     ret = check_privoxy_config()

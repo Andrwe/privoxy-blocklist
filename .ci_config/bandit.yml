@@ -1,4 +1,0 @@
----
-skips:
-  # allow assert as only used in pytest
-  - B101
