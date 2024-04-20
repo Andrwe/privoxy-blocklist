@@ -8,11 +8,10 @@ from typing import Generator, Optional
 
 import pytest
 import requests
-from pytest import StashKey
 from pytestshellutils.shell import Daemon, ProcessResult, Subprocess
 from urllib3.util import Url, parse_url
 
-phase_report_key = StashKey[int]()
+phase_report_key = pytest.StashKey[int]()
 
 
 class UrlParsed:
@@ -29,9 +28,7 @@ class UrlParsed:
         self.parsed_url = parse_url(self.origin_url)
         self.scheme = self.parsed_url.scheme or "http"
         parsed_port = f":{self.parsed_url.port}" if self.parsed_url.port else ""
-        self.scheme_less_url = (
-            f"{self.parsed_url.host}{parsed_port}{self.parsed_url.request_uri}"
-        )
+        self.scheme_less_url = f"{self.parsed_url.host}{parsed_port}{self.parsed_url.request_uri}"
 
 
 def debug_enabled() -> bool:
@@ -67,10 +64,9 @@ def check_not_in(needle: str, haystack: str) -> bool:
     return needle not in haystack
 
 
-def _get_privoxy_args(shell: Subprocess) -> list[str]:
-    """Return arguments for running Privoxy."""
+def _get_privoxy_config(shell: Subprocess) -> str:
+    """Return path to privoxy config file."""
     config_path = "/etc/privoxy/config"
-    privoxy_args = ["--no-daemon", "--user", "privoxy"]
     if is_openwrt():
         config_path = "/var/etc/privoxy.conf"
         script_path = f"{mkdtemp()}/generate_config.sh"
@@ -80,7 +76,13 @@ def _get_privoxy_args(shell: Subprocess) -> list[str]:
         )
         assert shell.run("/bin/ash", script_path).returncode == 0
     assert Path(config_path).exists()
-    privoxy_args.append(config_path)
+    return config_path
+
+
+def _get_privoxy_args(shell: Subprocess) -> list[str]:
+    """Return arguments for running Privoxy."""
+    privoxy_args = ["--no-daemon", "--user", "privoxy"]
+    privoxy_args.append(_get_privoxy_config(shell))
     return privoxy_args
 
 
@@ -114,20 +116,28 @@ def pytest_runtest_makereport(item: pytest.Item):
 
 
 @pytest.fixture(scope="module")
+def privoxy_config(shell: Subprocess) -> str:
+    """Fixture to return arguments for running Privoxy."""
+    return _get_privoxy_config(shell)
+
+
+@pytest.fixture(scope="module")
 def get_privoxy_args(shell: Subprocess) -> list[str]:
     """Fixture to return arguments for running Privoxy."""
     return _get_privoxy_args(shell)
 
 
-@pytest.fixture
+@pytest.fixture()
 def webserver(httpserver) -> UrlParsed:
     """Start HTTP server and return parsed URL object."""
     with Path(__file__).parent.joinpath("response.html").open(
-        "r", encoding="UTF-8"
+        "r",
+        encoding="UTF-8",
     ) as f_h:
         response_html = f_h.read()
     httpserver.expect_request("/").respond_with_data(
-        response_data=response_html, content_type="text/html"
+        response_data=response_html,
+        content_type="text/html",
     )
     return UrlParsed(httpserver.url_for("/"))
 
@@ -137,7 +147,8 @@ def filtertypes() -> list[str]:
     """Return filtertypes supported by privoxy-blocklist."""
     filter_types = []
     with Path(__file__).parent.parent.joinpath("privoxy-blocklist.sh").open(
-        "r", encoding="UTF-8"
+        "r",
+        encoding="UTF-8",
     ) as f_h:
         found_line = False
         for line in f_h.readlines():
@@ -179,7 +190,8 @@ def privoxy_blocklist_config() -> str:
 
 @pytest.fixture(scope="module")
 def start_privoxy(
-    request: pytest.FixtureRequest, get_privoxy_args: list[str]
+    request: pytest.FixtureRequest,
+    get_privoxy_args: list[str],
 ) -> Generator[bool, None, None]:
     """Test start of privoxy."""
     # privoxy must run as privoxy to suit apparmor-config on ubuntu
@@ -200,7 +212,7 @@ def start_privoxy(
     if (
         (phase_report_key in node.stash) and node.stash[phase_report_key] > 0
     ) or " Error: " in logs:
-        print(f"\n\nprivoxy-logs\n{logs}")
+        print(f"\n\nprivoxy-logs\n{logs}")  # noqa: T201
     assert " Error: " not in logs
 
 
@@ -216,7 +228,8 @@ def check_https_inspection(start_privoxy) -> Optional[bool]:
         timeout=10,
     )
     check_support = search(
-        r"<code>FEATURE_HTTPS_INSPECTION</code>.*\n\s*<td>\s*No\s*</", resp.text
+        r"<code>FEATURE_HTTPS_INSPECTION</code>.*\n\s*<td>\s*No\s*</",
+        resp.text,
     )
     if check_support:
         return False

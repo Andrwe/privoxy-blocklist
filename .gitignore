@@ -2,4 +2,5 @@
 **/.mypy_cache
 **/.pytest_cache
 **/.ropeproject
+**/.ruff_cache
 **/pytestdebug.log

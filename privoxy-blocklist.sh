@@ -369,7 +369,7 @@ function main() {
         set -e
 
         # convert AdblockPlus list to Privoxy list
-        # blacklist of urls
+        # blocklist of urls
         debug 1 "Creating actionfile for ${list} ..."
         echo "{ +block{${list}} }" > "${actionfile}"
         sed '
@@ -746,9 +746,9 @@ function main() {
             # FIXME: add combination of classes and attributes: ##.OUTBRAIN[data-widget-id^="FMS_REELD_"]
         fi
 
-        # create domain based whitelist
+        # create domain based allowlist
 
-        # create domain based blacklist
+        # create domain based blocklist
         #    domains=$(sed '/^#/d;/#/!d;s/,~/,\*/g;s/~/;:\*/g;s/^\([a-zA-Z]\)/;:\1/g' ${file})
         #    [ -n "${domains}" ] && debug 1 "... creating domainbased filterfiles ..."
         #    debug 2 "Found Domains: ${domains}."
@@ -769,12 +769,12 @@ function main() {
         #    IFS=${ifs}
         #    debug 1 "... all domainbased filterfiles created ..."
 
-        debug 1 "... creating and adding whitlist for urls ..."
-        # whitelist of urls
+        debug 1 "... creating and adding allowlist for urls ..."
+        # allowlist of urls
         echo "{ -block }" >> "${actionfile}"
         sed 's/^@@//g;/\$.*/d;/#/d;s/\./\\./g;s/\?/\\?/g;s/\*/.*/g;s/(/\\(/g;s/)/\\)/g;s/\[/\\[/g;s/\]/\\]/g;s/\^/[\/\&:\?=_]/g;s/^||/\./g;s/^|/^/g;s/|$/\$/g;/|/d' "${domain_name_except_file}" >> "${actionfile}"
-        debug 1 "... created and added whitelist - creating and adding image handler ..."
-        # whitelist of image urls
+        debug 1 "... created and added allowlist - creating and adding image handler ..."
+        # allowlist of image urls
         echo "{ -block +handle-as-image }" >> "${actionfile}"
         sed '/^@@.*/!d;s/^@@//g;/\$.*image.*/!d;s/\$.*image.*//g;/#/d;s/\./\\./g;s/\?/\\?/g;s/\*/.*/g;s/(/\\(/g;s/)/\\)/g;s/\[/\\[/g;s/\]/\\]/g;s/\^/[\/\&:\?=_]/g;s/^||/\./g;s/^|/^/g;s/|$/\$/g;/|/d' "${file}" >> "${actionfile}"
         debug 1 "... created and added image handler ..."

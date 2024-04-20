@@ -1,0 +1,32 @@
+line-length = 100
+
+[lint]
+select = [
+    "E",
+    "F",
+    "C90",
+    "I",
+    "D",
+    "PL",
+    "RUF",
+    "A",
+    "COM",
+    "C4",
+    "T20",
+    "PT",
+    "Q",
+    "RET",
+    "SIM",
+    "PTH",
+    "S",
+    "B",
+]
+ignore = [
+    "COM812",
+    "D203",
+    "D213",
+    "S101",
+    "S603",
+]
+
+# vim: st=4 ts=4 et
