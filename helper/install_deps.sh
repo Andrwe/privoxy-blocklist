@@ -50,8 +50,6 @@ certificate-directory /var/lib/privoxy/certs
 trusted-cas-file /etc/ssl/certs/ca-certificates.crt
 ca-cert-file cacert.crt
 ca-key-file cakey.pem
-# activate debugging of rules & access log
-debug 8704
 EOF
         fi
         if [ -e /usr/local/share/ca-certificates/privoxy/privoxy-cacert.crt ]; then
@@ -60,6 +58,12 @@ EOF
         ln -s /etc/privoxy/CA/cacert.crt /usr/local/share/ca-certificates/privoxy/privoxy-cacert.crt
         update-ca-certificates
         c_rehash
+    fi
+    if ! grep -q '^debug' /etc/privoxy/config; then
+        cat >> /etc/privoxy/config << EOF
+# activate debugging of rules & access log
+debug 8704
+EOF
     fi
     exit 0
 fi
@@ -116,6 +120,11 @@ EOF
         list    actionsfile             '/etc/config/privoxy_https.action'
 EOF
         fi
+    fi
+    if ! grep -q '^debug' /etc/config/privoxy; then
+        cat >> /etc/config/privoxy << EOF
+        option  debug             '8704'
+EOF
     fi
     exit 0
 fi

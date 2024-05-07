@@ -414,7 +414,7 @@ function main() {
                         # remove all combinations with attribute matching
                         /^##\..*\[.*/d
                         # remove all matches with combinators
-                        /^##\..*[>+~ ].*/d
+                        /^##\..*[>+~ :].*/d
                         # cleanup
                         s/^##\.//g
                         # prepare regex merging
@@ -422,7 +422,7 @@ function main() {
                     ' "${html_file}" | while read -r line; do
                         # number of matches within one rule impacts runtime of each request to modify the content
                         if [ "${#lines[@]}" -lt 1000 ]; then
-                            lines+=("$line")
+                            lines+=("${line}")
                             continue
                         fi
                         # complexity of regex impacts runtime of each request to modify the content
@@ -519,7 +519,7 @@ function main() {
                     lines=()
                     # using while-loop as privoxy cannot handle more than 2000 or-connected strings within one regex
                     sed -e '
-                        # only process gloabl classes
+                        # only process gloabl attributes
                         /^##\[[^=][^=]*$/!d
                         # remove all matches with combinators
                         /^##.*[>+~ ].*/d
@@ -529,6 +529,8 @@ function main() {
                         s/^\[\([^=][^=]*\)\]/\1/g
                         # convert dots
                         s/\.\([^\.]\)/\\.\1/g
+                        # convert combined attribute name-only matches (e.g. ##[data-freestar-ad][id])
+                        s/\]\s*\[/.*/g
                         s/$/|/
                     ' "${html_file}" | sort -u | while read -r line; do
                         # number of matches within one rule impacts runtime of each request to modify the content
