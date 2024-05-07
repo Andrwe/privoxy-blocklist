@@ -7,6 +7,7 @@ content_removed = [
     "MyAdsId3",  # id match
     "AdRight2",  # class match with element having multiple classes
     "data-ad-manager-id",  # attribute match
+    "data-freestar-ad id",  # combined attribute match
     'data-role="tile-ads-module"',  # attribute exact match
     'onclick="content.ad/"',  # attribute contain match
     'class="adDisplay-module_foobar"',  # attribute startswith match

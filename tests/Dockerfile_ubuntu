@@ -1,6 +1,7 @@
 FROM		ubuntu:latest
 COPY		tests/requirements.txt /requirements.txt
 COPY		helper/install_deps.sh /install_deps.sh
+RUN		install -d -o root -g root /pytest_cache
 # hadolint ignore=DL3018
 ENV		DEBIAN_FRONTEND=noninteractive
 ENV		HTTPS_SUPPORT=true
@@ -12,13 +13,12 @@ RUN		apt-get update \
 			python3-dev \
 			sudo \
 			vim \
-		&& pip install --no-cache-dir -qr /requirements.txt \
-		&& rm -f /requirements.txt \
-		&& install -d -o root -g root /pytest_cache \
-		&& /install_deps.sh \
-		&& rm -f /install_deps.sh \
 		&& apt-get clean \
 		&& apt-get -y autoremove \
 		&& rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+RUN		pip install --no-cache-dir -r /requirements.txt --break-system-packages \
+		&& rm -f /requirements.txt
+RUN		/install_deps.sh \
+		&& rm -f /install_deps.sh
 WORKDIR		/app
 ENTRYPOINT	["pytest", "-v", "-s", "-o", "cache_dir=/pytest_cache", "--color", "yes"]
