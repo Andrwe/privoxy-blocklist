@@ -822,7 +822,7 @@ function remove() {
         exit 0
     fi
     if rm -rf "${PRIVOXY_DIR}/"*.script.{action,filter} \
-        && sed '/^actionsfile .*\.script\.action$/d;/^filterfile .*\.script\.filter$/d' -i "${PRIVOXY_CONF}"; then
+        && sed '/^\(\s\s*list\s\s*\)\?actionsfile\s\s*.*\.script\.action.\?$/d;/^\(\s\s*list\s\s*\)\?filterfile\s\s*.*\.script\.filter.\?$/d' -i "${PRIVOXY_CONF}"; then
         echo "Lists removed."
         exit 0
     fi

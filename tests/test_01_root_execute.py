@@ -4,13 +4,12 @@ from pathlib import Path
 from shutil import copyfile, copymode, which
 from subprocess import run
 
-import pytest
 import requests
 from pytestshellutils.customtypes import EnvironDict
 from pytestshellutils.shell import Subprocess
 
 import config
-from conftest import check_in, check_not_in, check_privoxy_config, is_openwrt
+from conftest import check_in, check_not_in, check_privoxy_config, is_openwrt, run_generate_config
 
 
 def test_config_generator(
@@ -132,10 +131,8 @@ def test_content_exists(start_privoxy, webserver) -> None:
         assert check_in(needle, response.text)
 
 
-def test_remove(privoxy_blocklist: str, privoxy_config: str) -> None:
+def test_remove(privoxy_blocklist: str, privoxy_config: str, shell: Subprocess) -> None:
     """Run tests for removal of privoxy-blocklist configs."""
-    if is_openwrt():
-        pytest.skip("Remove not yet implemented in OpenWRT.")
     process = run(
         [privoxy_blocklist, "-r"],
         capture_output=True,
@@ -155,6 +152,17 @@ def test_remove(privoxy_blocklist: str, privoxy_config: str) -> None:
     )
     assert process.returncode == 0
     assert check_in("Lists removed.", process.stdout)
+    if is_openwrt():
+        assert check_not_in(
+            "script.action",
+            Path("/etc/config/privoxy").read_text(encoding="UTF-8"),
+        )
+        assert check_not_in(
+            "script.filter",
+            Path("/etc/config/privoxy").read_text(encoding="UTF-8"),
+        )
+        # required to regenerate privoxy config on openwrt
+        run_generate_config(shell)
     assert check_not_in(
         "script.action",
         Path(privoxy_config).read_text(encoding="UTF-8"),
