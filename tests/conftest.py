@@ -64,17 +64,23 @@ def check_not_in(needle: str, haystack: str) -> bool:
     return needle not in haystack
 
 
+def run_generate_config(shell: Subprocess) -> None:
+    """Generate Privoxy config on OpenWRT."""
+    script_path = f"{mkdtemp()}/generate_config.sh"
+    Path(script_path).write_text(
+        "source $IPKG_INSTROOT/lib/functions.sh; source /etc/rc.d/K10privoxy; _uci2conf",
+        encoding="UTF-8",
+    )
+    generate_run = shell.run("/bin/ash", script_path)
+    assert generate_run.returncode == 0
+
+
 def _get_privoxy_config(shell: Subprocess) -> str:
     """Return path to privoxy config file."""
     config_path = "/etc/privoxy/config"
     if is_openwrt():
         config_path = "/var/etc/privoxy.conf"
-        script_path = f"{mkdtemp()}/generate_config.sh"
-        Path(script_path).write_text(
-            "source $IPKG_INSTROOT/lib/functions.sh; source /etc/rc.d/K10privoxy; _uci2conf",
-            encoding="UTF-8",
-        )
-        assert shell.run("/bin/ash", script_path).returncode == 0
+        run_generate_config(shell)
     assert Path(config_path).exists()
     return config_path
 
