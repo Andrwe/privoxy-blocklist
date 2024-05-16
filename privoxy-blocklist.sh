@@ -48,11 +48,18 @@ FILTERTYPES=(
     "id_global"
 )
 
+DEFAULT_URLS=(
+  "https://easylist-downloads.adblockplus.org/easylistgermany.txt"
+  "https://easylist-downloads.adblockplus.org/easylist.txt"
+)
+
 ######################################################################
 #
 #                  No changes needed after this line.
 #
 ######################################################################
+
+SCRIPTNAME="$(basename "$(readlink -f "${0}")")"
 
 function usage() {
     get_config_path
@@ -61,14 +68,17 @@ function usage() {
     echo "Options:"
     echo "      -h:         Show this help."
     echo "      -c:         Path to script configuration file. (default = ${SCRIPTCONF} - OS specific)"
-    echo "      -f filter:  only activate given content filter, can be used multiple times. (default: empty, content-filter disabled)"
+    echo "      -f filter:  Only activate given content filter, can be used multiple times. (default: empty, content-filter disabled)"
     echo "                  Supported values: ${FILTERTYPES[*]}"
     echo "      -q:         Don't give any output."
+    echo "      -r:         Remove all lists build by this script."
+    echo "      -t path:    Define path for temporary files. (default: /tmp/${SCRIPTNAME})"
+    echo "      -u URL:     Process given list URL, can be used multiple times. (default: ${DEFAULT_URLS[*]})"
+    echo "      -U:         Update configuration file based on given parameters and exit."
     echo "      -v 1:       Enable verbosity 1. Show a little bit more output."
     echo "      -v 2:       Enable verbosity 2. Show a lot more output."
     echo "      -v 3:       Enable verbosity 3. Show all possible output and don't delete temporary files.(For debugging only!!)"
     echo "      -V:         Show version."
-    echo "      -r:         Remove all lists build by this script."
 }
 
 # shellcheck disable=SC2317  # function is called in case of FILTERS not empty
@@ -177,6 +187,52 @@ function get_group() {
     get_user_group | cut -d' ' -f2
 }
 
+function write_config() {
+    local filters="" urls=""
+    # convert to list of quoted strings
+    for filter in "${OPT_FILTERS[@]}"; do
+        filters+="\"${filter}\" "
+    done
+    # convert to list of quoted strings
+    for url in "${OPT_URLS[@]:-"${DEFAULT_URLS[@]}"}"; do
+        urls+="\"${url}\" "
+    done
+    cat > "${SCRIPTCONF}" << EOF
+# Config of privoxy-blocklist
+
+# array of URL for AdblockPlus lists
+#  for more sources just add it within the round brackets
+URLS=(${urls})
+
+# array of content filters to convert
+#   for supported values check: $0 -h
+#   empty by default to deactivate as content filters slowdown privoxy a lot
+FILTERS=(${filters})
+
+# config for privoxy initscript providing PRIVOXY_CONF, PRIVOXY_USER and PRIVOXY_GROUP
+INIT_CONF="/etc/conf.d/privoxy"
+
+# !! set these when config INIT_CONF doesn't exist and default values do not match your system !!
+# !! These values will be overwritten by INIT_CONF when exists !!
+#PRIVOXY_USER="privoxy"
+#PRIVOXY_GROUP="root"
+#PRIVOXY_CONF="/etc/privoxy/config"
+
+# name for lock file (default: script name)
+TMPNAME="\$(basename "\$(readlink -f "\${0}")")"
+# directory for temporary files
+TMPDIR="${OPT_TMPDIR:-"/tmp/\${TMPNAME}"}"
+
+# Debug-level
+#   -1 = quiet
+#    0 = normal
+#    1 = verbose
+#    2 = more verbose (debugging)
+#    3 = incredibly loud (function debugging)
+DBG=0
+EOF
+}
+
 function prepare() {
     if [ ${UID} -ne 0 ]; then
         error "Root privileges needed. Exit."
@@ -204,44 +260,21 @@ function prepare() {
 
     if [[ ! -f "${SCRIPTCONF}" ]]; then
         info "No config found in ${SCRIPTCONF}. Creating default one and exiting because you might have to adjust it."
-        cat > "${SCRIPTCONF}" << EOF
-# Config of privoxy-blocklist
-
-# array of URL for AdblockPlus lists
-#  for more sources just add it within the round brackets
-URLS=(
-  "https://easylist-downloads.adblockplus.org/easylistgermany.txt"
-  "https://easylist-downloads.adblockplus.org/easylist.txt"
-)
-
-# array of content filters to convert
-#   for supported values check: $0 -h
-#   empty by default to deactivate as content filters slowdown privoxy a lot
-FILTERS=()
-
-# config for privoxy initscript providing PRIVOXY_CONF, PRIVOXY_USER and PRIVOXY_GROUP
-INIT_CONF="/etc/conf.d/privoxy"
-
-# !! set these when config INIT_CONF doesn't exist and default values do not match your system !!
-# !! These values will be overwritten by INIT_CONF when exists !!
-#PRIVOXY_USER="privoxy"
-#PRIVOXY_GROUP="root"
-#PRIVOXY_CONF="/etc/privoxy/config"
-
-# name for lock file (default: script name)
-TMPNAME="\$(basename "\$(readlink -f "\${0}")")"
-# directory for temporary files
-TMPDIR="/tmp/\${TMPNAME}"
-
-# Debug-level
-#   -1 = quiet
-#    0 = normal
-#    1 = verbose
-#    2 = more verbose (debugging)
-#    3 = incredibly loud (function debugging)
-DBG=0
-EOF
+        write_config
         exit 2
+    fi
+    if [ "${OPT_UPDATE_CONFIG}" -eq 1 ]; then
+        info "Updating configuration as -U was specified."
+        # shellcheck disable=SC1090
+        source "${SCRIPTCONF}"
+        if [ -z "${OPT_FILTERS[*]}" ]; then
+            OPT_FILTERS=("${FILTERS[@]}")
+        fi
+        if [ -z "${OPT_TMPDIR}" ]; then
+            OPT_TMPDIR="${TMPDIR}"
+        fi
+        write_config
+        exit 0
     fi
 
     if [[ ! -r "${SCRIPTCONF}" ]]; then
@@ -256,7 +289,15 @@ EOF
     if [ -n "${OPT_FILTERS[*]}" ]; then
         FILTERS=("${OPT_FILTERS[@]}")
     fi
-    debug 2 "Content filters: ${OPT_FILTERS[*]:-disabled}"
+    debug 2 "Content filters: ${FILTERS[*]:-disabled}"
+    if [ -n "${OPT_URLS[*]}" ]; then
+        URLS=("${OPT_URLS[@]}")
+    fi
+    debug 2 "URLs: ${URLS[*]}"
+    if [ -n "${OPT_TMPDIR}" ]; then
+        TMPDIR="${OPT_TMPDIR}"
+    fi
+    debug 2 "TMPDIR: ${TMPDIR}"
 
     # load privoxy config
     # shellcheck disable=SC1090
@@ -834,7 +875,10 @@ function remove() {
 VERBOSE=()
 method="main"
 OS="$(uname)"
+OPT_TMPDIR=""
+OPT_UPDATE_CONFIG=0
 OPT_FILTERS=()
+OPT_URLS=()
 
 # ID_LIKE is mainly used to check for openwrt and set via os-release
 ID_LIKE="unset"
@@ -852,7 +896,7 @@ case "${ID_LIKE}" in
 esac
 
 # loop for options
-while getopts ":c:f:hrqv:V" opt; do
+while getopts ":c:f:hqrt:u:Uv:V" opt; do
     case "${opt}" in
         "c")
             SCRIPTCONF="${OPTARG}"
@@ -866,6 +910,15 @@ while getopts ":c:f:hrqv:V" opt; do
         "r")
             method="remove"
             ;;
+        "t")
+            OPT_TMPDIR="${OPTARG}"
+            ;;
+        "u")
+            OPT_URLS+=("${OPTARG}")
+            ;;
+        "U")
+            OPT_UPDATE_CONFIG=1
+            ;;
         "v")
             OPT_DBG="${OPTARG}"
             if [ "${OS_FLAVOR}" != "openwrt" ]; then
@@ -878,15 +931,26 @@ while getopts ":c:f:hrqv:V" opt; do
             exit 0
             ;;
         ":")
-            echo "${TMPNAME}: -${OPTARG} requires an argument" >&2
+            error "-${OPTARG} requires an argument" >&2
+            echo
+            usage
             exit 1
             ;;
-        "h" | *)
+        "h")
             usage
             exit 0
             ;;
+        "?" | *)
+            error "Unknown option: ${OPTARG}"
+            echo
+            usage
+            exit 1
+            ;;
     esac
 done
+#PRIVOXY_USER="privoxy"
+#PRIVOXY_GROUP="root"
+#PRIVOXY_CONF="/etc/privoxy/config"
 
 if [ -n "${OPT_FILTERS[*]}" ]; then
     if unknown="$(grep -vxFf <(printf '%s\n' "${FILTERTYPES[@]}") <(printf '%s\n' "${OPT_FILTERS[@]}"))"; then

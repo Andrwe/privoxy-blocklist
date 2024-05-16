@@ -173,6 +173,60 @@ def test_remove(privoxy_blocklist: str, privoxy_config: str, shell: Subprocess) 
     )
 
 
+def test_config_update(privoxy_blocklist: str, privoxy_blocklist_config: str) -> None:
+    """Test update of privoxy-blocklist configuration file."""
+    assert check_not_in(
+        'TMPDIR="/temp/test_update"', Path(privoxy_blocklist_config).read_text(encoding="UTF-8")
+    )
+    assert check_not_in(
+        "attribute_global_contain", Path(privoxy_blocklist_config).read_text(encoding="UTF-8")
+    )
+    assert check_not_in(
+        '"https://test_url.update_in_config"',
+        Path(privoxy_blocklist_config).read_text(encoding="UTF-8"),
+    )
+    # check TMPDIR change
+    process = run(
+        [privoxy_blocklist, "-U", "-t", "/temp/test_update"],
+        capture_output=True,
+        input="y\n",
+        text=True,
+        check=True,
+    )
+    assert process.returncode == 0
+    assert check_in(
+        'TMPDIR="/temp/test_update"', Path(privoxy_blocklist_config).read_text(encoding="UTF-8")
+    )
+    # check FILTERS change
+    process = run(
+        [privoxy_blocklist, "-U", "-f", "attribute_global_contain"],
+        capture_output=True,
+        input="y\n",
+        text=True,
+        check=True,
+    )
+    assert process.returncode == 0
+    assert check_in(
+        'TMPDIR="/temp/test_update"', Path(privoxy_blocklist_config).read_text(encoding="UTF-8")
+    )
+    assert check_in(
+        "attribute_global_contain", Path(privoxy_blocklist_config).read_text(encoding="UTF-8")
+    )
+    # check URLS change
+    process = run(
+        [privoxy_blocklist, "-U", "-u", "https://test_url.update_in_config"],
+        capture_output=True,
+        input="y\n",
+        text=True,
+        check=True,
+    )
+    assert process.returncode == 0
+    assert check_in(
+        '"https://test_url.update_in_config"',
+        Path(privoxy_blocklist_config).read_text(encoding="UTF-8"),
+    )
+
+
 # must be second last test as it will generate unpredictable privoxy configurations
 def test_predefined_custom_config_generator(
     shell: Subprocess,
