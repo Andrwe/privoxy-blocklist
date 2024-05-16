@@ -67,17 +67,18 @@ function usage() {
     echo " "
     echo "Options:"
     echo "      -h:         Show this help."
-    echo "      -c:         Path to script configuration file. (default = ${SCRIPTCONF} - OS specific)"
-    echo "      -f filter:  Only activate given content filter, can be used multiple times. (default: empty, content-filter disabled)"
+    echo "      -c path:    Path to script configuration file. (default = ${SCRIPTCONF} - OS specific) [env: SCRIPTCONF='']"
+    echo "      -C:         Don't write configuration file [env: NO_CONFIG=1]"
+    echo "      -f filter:  Only activate given content filter, can be used multiple times. (default: empty, content-filter disabled) [env: FILTERS=()]"
     echo "                  Supported values: ${FILTERTYPES[*]}"
-    echo "      -q:         Don't give any output."
+    echo "      -q:         Don't give any output. [env: DBG='-1']"
     echo "      -r:         Remove all lists build by this script."
-    echo "      -t path:    Define path for temporary files. (default: /tmp/${SCRIPTNAME})"
-    echo "      -u URL:     Process given list URL, can be used multiple times. (default: ${DEFAULT_URLS[*]})"
+    echo "      -t path:    Define path for temporary files. (default: /tmp/${SCRIPTNAME}) [env: TMPDIR='']"
+    echo "      -u URL:     Process given list URL, can be used multiple times. (default: ${DEFAULT_URLS[*]}) [env: URLS=()]"
     echo "      -U:         Update configuration file based on given parameters and exit."
-    echo "      -v 1:       Enable verbosity 1. Show a little bit more output."
-    echo "      -v 2:       Enable verbosity 2. Show a lot more output."
-    echo "      -v 3:       Enable verbosity 3. Show all possible output and don't delete temporary files.(For debugging only!!)"
+    echo "      -v 1:       Enable verbosity 1. Show a little bit more output. [env: DBG=1]"
+    echo "      -v 2:       Enable verbosity 2. Show a lot more output. [env: DBG=2]"
+    echo "      -v 3:       Enable verbosity 3. Show all possible output and don't delete temporary files.(For debugging only!!) [env: DBG=3]"
     echo "      -V:         Show version."
 }
 
@@ -161,10 +162,10 @@ function get_user_group() {
         # shellcheck disable=SC2012
         ls -l "/etc/privoxy/default.action" | sed 's/^[^ ]*\s\s*[0-9][0-9]*\s\s*\([^ ][^ ]*\)\s\s*\([^ ][^ ]*\)\s\s*.*/\1 \2/'
     else
-        if LANG=C stat --help |& grep ' \-c' | grep -q '\-\-format'; then
+        if LANG=C stat --help |& grep -- ' -c' | grep -q -- '--format'; then
             # Linux stat-command
             stat -c "%U %G" /etc/privoxy/default.action
-        elif LANG=C stat --help |& grep ' \-f' | grep -q 'format'; then
+        elif LANG=C stat --help |& grep -- ' -f' | grep -q 'format'; then
             # MacOS stat-command
             local user_id group_id
             user_id="$(stat -f "%u" /etc/privoxy/default.action)"
@@ -190,11 +191,11 @@ function get_group() {
 function write_config() {
     local filters="" urls=""
     # convert to list of quoted strings
-    for filter in "${OPT_FILTERS[@]}"; do
+    for filter in "${OPT_FILTERS[@]:-"${FILTERS[@]}"}"; do
         filters+="\"${filter}\" "
     done
     # convert to list of quoted strings
-    for url in "${OPT_URLS[@]:-"${DEFAULT_URLS[@]}"}"; do
+    for url in "${OPT_URLS[@]:-"${URLS[@]:-"${DEFAULT_URLS[@]}"}"}"; do
         urls+="\"${url}\" "
     done
     cat > "${SCRIPTCONF}" << EOF
@@ -252,37 +253,40 @@ function prepare() {
         get_config_path
     fi
 
-    if [[ ! -d "$(dirname "${SCRIPTCONF}")" ]]; then
-        info "creating missing config directory '$(dirname "${SCRIPTCONF}")'"
-        mkdir -p "$(dirname "${SCRIPTCONF}")"
-        chmod 755 "$(dirname "${SCRIPTCONF}")"
-    fi
+    if [ "${NO_CONFIG}" -eq 0 ]; then
+        if [[ ! -d "$(dirname "${SCRIPTCONF}")" ]]; then
+            info "creating missing config directory '$(dirname "${SCRIPTCONF}")'"
+            mkdir -p "$(dirname "${SCRIPTCONF}")"
+            chmod 755 "$(dirname "${SCRIPTCONF}")"
+        fi
 
-    if [[ ! -f "${SCRIPTCONF}" ]]; then
-        info "No config found in ${SCRIPTCONF}. Creating default one and exiting because you might have to adjust it."
-        write_config
-        exit 2
-    fi
-    if [ "${OPT_UPDATE_CONFIG}" -eq 1 ]; then
-        info "Updating configuration as -U was specified."
+        if [[ ! -f "${SCRIPTCONF}" ]]; then
+            info "No config found in ${SCRIPTCONF}. Creating default one and exiting because you might have to adjust it."
+            write_config
+            exit 2
+        fi
+        if [ "${OPT_UPDATE_CONFIG}" -eq 1 ]; then
+            info "Updating configuration as -U was specified."
+            # shellcheck disable=SC1090
+            source "${SCRIPTCONF}"
+            if [ -z "${OPT_FILTERS[*]}" ]; then
+                OPT_FILTERS=("${FILTERS[@]}")
+            fi
+            if [ -z "${OPT_TMPDIR}" ]; then
+                OPT_TMPDIR="${TMPDIR}"
+            fi
+            write_config
+            exit 0
+        fi
+
+        if [[ ! -r "${SCRIPTCONF}" ]]; then
+            debug -1 "Can't read ${SCRIPTCONF}. Permission denied."
+        fi
+
         # shellcheck disable=SC1090
         source "${SCRIPTCONF}"
-        if [ -z "${OPT_FILTERS[*]}" ]; then
-            OPT_FILTERS=("${FILTERS[@]}")
-        fi
-        if [ -z "${OPT_TMPDIR}" ]; then
-            OPT_TMPDIR="${TMPDIR}"
-        fi
-        write_config
-        exit 0
     fi
 
-    if [[ ! -r "${SCRIPTCONF}" ]]; then
-        debug -1 "Can't read ${SCRIPTCONF}. Permission denied."
-    fi
-
-    # shellcheck disable=SC1090
-    source "${SCRIPTCONF}"
     if [ -n "${OPT_DBG:-}" ]; then
         DBG="${OPT_DBG}"
     fi
@@ -293,11 +297,12 @@ function prepare() {
     if [ -n "${OPT_URLS[*]}" ]; then
         URLS=("${OPT_URLS[@]}")
     fi
-    debug 2 "URLs: ${URLS[*]}"
+    debug 2 "URLs: ${URLS[*]:-}"
     if [ -n "${OPT_TMPDIR}" ]; then
         TMPDIR="${OPT_TMPDIR}"
     fi
-    debug 2 "TMPDIR: ${TMPDIR}"
+    debug 2 "TMPDIR: ${TMPDIR:-}"
+    TMPNAME="${TMPNAME:-"$(basename "$(readlink -f "${0}")")"}"
 
     # load privoxy config
     # shellcheck disable=SC1090
@@ -306,7 +311,7 @@ function prepare() {
     fi
 
     # set command to be run on exit
-    if [ "${DBG}" -gt 2 ]; then
+    if [ "${DBG:-0}" -gt 2 ]; then
         trap - INT TERM EXIT
     fi
 
@@ -333,12 +338,21 @@ function prepare() {
 
     # set privoxy config dir
     PRIVOXY_DIR="$(dirname "${PRIVOXY_CONF}")"
+
+    if [ -z "${URLS[*]:-}" ]; then
+        error "no URLs given. Either provide -u or set environment variable URLS."
+        exit 3
+    fi
+    if [ -z "${TMPDIR:-}" ]; then
+        error "no TMPDIR given. Either provide -t or set environment variable TMPDIR."
+        exit 3
+    fi
 }
 
 function debug() {
     local expected_level="${1}"
     shift 1
-    if [ "${DBG}" -ge "${expected_level}" ]; then
+    if [ "${DBG:-0}" -ge "${expected_level}" ]; then
         if [ "${expected_level}" -eq 0 ]; then
             info "${@}"
         else
@@ -875,6 +889,7 @@ function remove() {
 VERBOSE=()
 method="main"
 OS="$(uname)"
+NO_CONFIG="${NO_CONFIG:-0}"
 OPT_TMPDIR=""
 OPT_UPDATE_CONFIG=0
 OPT_FILTERS=()
@@ -896,10 +911,13 @@ case "${ID_LIKE}" in
 esac
 
 # loop for options
-while getopts ":c:f:hqrt:u:Uv:V" opt; do
+while getopts ":c:Cf:hqrt:u:Uv:V" opt; do
     case "${opt}" in
         "c")
             SCRIPTCONF="${OPTARG}"
+            ;;
+        "C")
+            NO_CONFIG=1
             ;;
         "f")
             OPT_FILTERS+=("${OPTARG,,}")
@@ -952,8 +970,8 @@ done
 #PRIVOXY_GROUP="root"
 #PRIVOXY_CONF="/etc/privoxy/config"
 
-if [ -n "${OPT_FILTERS[*]}" ]; then
-    if unknown="$(grep -vxFf <(printf '%s\n' "${FILTERTYPES[@]}") <(printf '%s\n' "${OPT_FILTERS[@]}"))"; then
+if [ -n "${OPT_FILTERS[*]:-"${FILTERS[*]}"}" ]; then
+    if unknown="$(grep -vxFf <(printf '%s\n' "${FILTERTYPES[@]}") <(printf '%s\n' "${OPT_FILTERS[@]:-"${FILTERS[@]}"}"))"; then
         error "Unknown filters: ${unknown}"
         exit 1
     fi
