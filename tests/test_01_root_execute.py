@@ -84,8 +84,7 @@ def test_next_run(
         cmd.extend(["-f", filtertype])
     ret_script = shell.run(*cmd)
     assert ret_script.returncode == 0
-    ret_privo = check_privoxy_config()
-    assert ret_privo.returncode == 0
+    check_privoxy_config()
 
 
 def test_request_success(start_privoxy, supported_schemes) -> None:
@@ -213,7 +212,7 @@ def test_config_update(
 
 
 def test_env_based_config(shell: Subprocess, privoxy_blocklist: str, privoxy_config: str) -> None:
-    """Test update of privoxy-blocklist configuration file."""
+    """Test script run configured using environment variables only."""
     process = shell.run(privoxy_blocklist, "-C")
     assert process.returncode == int(3)
     assert check_in(
@@ -265,6 +264,93 @@ def test_env_based_config(shell: Subprocess, privoxy_blocklist: str, privoxy_con
         "easylist.script.action",
         Path(privoxy_config_test).read_text(encoding="UTF-8"),
     )
+
+    privoxy_config_dir = mkdtemp()
+    privoxy_config_test = f"{privoxy_config_dir}/test_config"
+    lists_dir = f"{privoxy_config_dir}/lists"
+    if is_openwrt():
+        copyfile("/etc/config/privoxy", privoxy_config_test)
+    else:
+        copyfile(privoxy_config, privoxy_config_test)
+    process = shell.run(
+        privoxy_blocklist,
+        "-C",
+        env=EnvironDict(
+            {
+                "URLS": "https://easylist-downloads.adblockplus.org/easylist.txt",
+                "TMPDIR": "/temp/blub2",
+                "FILTERS": "class_global",
+                "DBG": "2",
+                "PRIVOXY_CONF": privoxy_config_test,
+                "LISTS_DIR": lists_dir,
+            }
+        ),
+    )
+    assert process.returncode == int(0)
+    assert check_in("URLs: https://easylist-downloads.adblockplus.org/easylist.txt", process.stdout)
+    assert check_in("TMPDIR: /temp/blub2", process.stdout)
+    assert check_in("Content filters: class_global", process.stdout)
+    assert check_in(f"Target directory for lists: {lists_dir}", process.stdout)
+    assert Path(lists_dir).is_dir()
+    assert Path(f"{lists_dir}/easylist.script.action").exists()
+    assert Path(f"{lists_dir}/easylist.script.action").is_file()
+    assert check_in(
+        f"{lists_dir}/easylist.script.action",
+        Path(privoxy_config_test).read_text(encoding="UTF-8"),
+    )
+    if is_openwrt():
+        run_generate_config(shell, privoxy_config_test)
+    check_privoxy_config()
+
+
+def test_argument_based_config(
+    shell: Subprocess, privoxy_blocklist: str, privoxy_config: str
+) -> None:
+    """Test update of privoxy-blocklist configuration file."""
+    privoxy_config_dir = mkdtemp()
+    privoxy_config_test = f"{privoxy_config_dir}/test_config"
+    lists_dir = f"{privoxy_config_dir}/lists"
+    if is_openwrt():
+        copyfile("/etc/config/privoxy", privoxy_config_test)
+    else:
+        copyfile(privoxy_config, privoxy_config_test)
+    process = shell.run(
+        privoxy_blocklist,
+        "-C",
+        "-p",
+        privoxy_config_test,
+        "-d",
+        lists_dir,
+        "-v",
+        "2",
+        "-f",
+        "class_global",
+        "-t",
+        "/temp/blub3",
+        "-u",
+        "https://easylist.to/easylist/easyprivacy.txt",
+    )
+    assert process.returncode == int(0)
+    assert check_in("URLs: https://easylist.to/easylist/easyprivacy.txt", process.stdout)
+    assert check_in("TMPDIR: /temp/blub3", process.stdout)
+    assert check_in("Content filters: class_global", process.stdout)
+    assert check_in(f"Target directory for lists: {lists_dir}", process.stdout)
+    assert Path(lists_dir).is_dir()
+    assert Path(f"{lists_dir}/easyprivacy.script.action").exists()
+    assert Path(f"{lists_dir}/easyprivacy.script.action").is_file()
+    assert check_in(
+        f"{lists_dir}/easyprivacy.script.action",
+        Path(privoxy_config_test).read_text(encoding="UTF-8"),
+    )
+    if is_openwrt():
+        run_generate_config(shell, privoxy_config_test)
+        assert check_in(
+            f"{lists_dir}/easyprivacy.script.action",
+            Path(privoxy_config).read_text(encoding="UTF-8"),
+        )
+        check_privoxy_config()
+    else:
+        check_privoxy_config(privoxy_config_test)
 
 
 # must be second last test as it will generate unpredictable privoxy configurations

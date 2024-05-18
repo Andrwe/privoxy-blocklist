@@ -13,12 +13,15 @@ RUN		apt-get update \
 			python3-dev \
 			sudo \
 			vim \
+		&& echo "%sudo ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers.d/nopw \
 		&& apt-get clean \
 		&& apt-get -y autoremove \
 		&& rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+RUN		useradd -U -G sudo test_run
 RUN		pip install --no-cache-dir -r /requirements.txt --break-system-packages \
 		&& rm -f /requirements.txt
 RUN		/install_deps.sh \
 		&& rm -f /install_deps.sh
 WORKDIR		/app
-ENTRYPOINT	["pytest", "-v", "-s", "-o", "cache_dir=/pytest_cache", "--color", "yes"]
+USER		test_run
+ENTRYPOINT	["sudo", "pytest", "-v", "-s", "-o", "cache_dir=/pytest_cache", "--color", "yes"]

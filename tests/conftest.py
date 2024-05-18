@@ -3,12 +3,13 @@
 import os
 from pathlib import Path
 from re import search
+from shutil import chown, copyfile
 from tempfile import mkdtemp
 from typing import Generator, Optional
 
 import pytest
 import requests
-from pytestshellutils.shell import Daemon, ProcessResult, Subprocess
+from pytestshellutils.shell import Daemon, Subprocess
 from urllib3.util import Url, parse_url
 
 phase_report_key = pytest.StashKey[int]()
@@ -64,14 +65,21 @@ def check_not_in(needle: str, haystack: str) -> bool:
     return needle not in haystack
 
 
-def run_generate_config(shell: Subprocess) -> None:
+def run_generate_config(shell: Subprocess, config_path: str = "") -> None:
     """Generate Privoxy config on OpenWRT."""
     script_path = f"{mkdtemp()}/generate_config.sh"
     Path(script_path).write_text(
         "source $IPKG_INSTROOT/lib/functions.sh; source /etc/rc.d/K10privoxy; _uci2conf",
         encoding="UTF-8",
     )
+    if config_path:
+        orig_path = "/etc/config/privoxy"
+        copyfile(orig_path, f"{orig_path}_bak")
+        copyfile(config_path, orig_path)
     generate_run = shell.run("/bin/ash", script_path)
+    if config_path:
+        copyfile(f"{orig_path}_bak", orig_path)
+        Path(f"{orig_path}_bak").unlink(missing_ok=True)
     assert generate_run.returncode == 0
 
 
@@ -85,21 +93,42 @@ def _get_privoxy_config(shell: Subprocess) -> str:
     return config_path
 
 
-def _get_privoxy_args(shell: Subprocess) -> list[str]:
+def _get_privoxy_args(shell: Subprocess, config_path: str = "") -> list[str]:
     """Return arguments for running Privoxy."""
     privoxy_args = ["--no-daemon", "--user", "privoxy"]
-    privoxy_args.append(_get_privoxy_config(shell))
+    if config_path:
+        config_obj = Path(config_path)
+        config_dir_obj = config_obj.parent
+        # permission change required for Ubuntu based tests
+        chown(config_dir_obj, user="privoxy")
+        config_dir_obj.chmod(0o755)
+        for file in config_dir_obj.iterdir():
+            chown(file, user="privoxy")
+            file.chmod(0o644)
+        privoxy_args.append(config_path)
+    else:
+        privoxy_args.append(_get_privoxy_config(shell))
     return privoxy_args
 
 
-def check_privoxy_config() -> ProcessResult:
+def check_privoxy_config(config_path: str = "") -> None:
     """Test start of privoxy."""
     # not using shell-fixture to simplify call of this function
     shell = Subprocess()
     command = ["/usr/sbin/privoxy", "--config-test"]
-    command.extend(_get_privoxy_args(shell))
-    # privoxy must run as privoxy to suit apparmor-config on ubuntu
-    return shell.run(*command)
+    command.extend(_get_privoxy_args(shell, config_path))
+    if config_path:
+        assert Path(config_path).owner() == "privoxy"
+        assert Path(config_path).parent.owner() == "privoxy"
+        assert oct(Path(config_path).stat().st_mode).endswith("644")
+        assert oct(Path(config_path).parent.stat().st_mode).endswith("755")
+        print(shell.run("ls", "-l", str(Path(config_path).parent)))
+    ret_privo = shell.run(*command)
+    print(os.getuid())
+    print(shell.run("id"))
+    assert ret_privo.returncode == 0
+    assert check_not_in(" Error: ", ret_privo.stdout + ret_privo.stderr)
+    assert check_not_in(" error: ", ret_privo.stdout + ret_privo.stderr)
 
 
 # based on

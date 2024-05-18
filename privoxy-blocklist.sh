@@ -69,8 +69,10 @@ function usage() {
     echo "      -h:         Show this help."
     echo "      -c path:    Path to script configuration file. (default = ${SCRIPTCONF} - OS specific) [env: SCRIPTCONF='']"
     echo "      -C:         Don't write configuration file [env: NO_CONFIG=1]"
+    echo "      -d path:    Path to store generated list files (*.action & *.filter) in. (default = directory of privoxy-config - OS specific) [env: LISTS_DIR='']"
     echo "      -f filter:  Only activate given content filter, can be used multiple times. (default: empty, content-filter disabled) [env: FILTERS=()]"
     echo "                  Supported values: ${FILTERTYPES[*]}"
+    echo "      -p path:    Path to Privoxy config file. (default = OS specific) [env: PRIVOXY_CONF='']"
     echo "      -q:         Don't give any output. [env: DBG='-1']"
     echo "      -r:         Remove all lists build by this script."
     echo "      -t path:    Define path for temporary files. (default: /tmp/${SCRIPTNAME}) [env: TMPDIR='']"
@@ -97,14 +99,14 @@ function activate_config() {
             option="filterfile"
             ;;
     esac
-    copy "${file_path}" "${PRIVOXY_DIR}"
-    if ! grep -q "${file_name}" "${PRIVOXY_CONF}"; then
+    copy "${file_path}" "${LISTS_DIR}"
+    if ! grep -q "${LISTS_DIR}/${file_name}" "${PRIVOXY_CONF}"; then
         debug 0 "Modifying ${PRIVOXY_CONF} ..."
         # ensure generated config is above user.* to allow overriding
         if [ "${OS_FLAVOR}" = "openwrt" ]; then
-            sed "s%^\(\s*#*\s*list\s\s*${option}\s\s*'user\.${file_type}'\)%\tlist\t${option}\t'${PRIVOXY_DIR}/${file_name}'\n\1%" "${PRIVOXY_CONF}" > "${TMPDIR}/config"
+            sed "s%^\(\s*#*\s*list\s\s*${option}\s\s*'user\.${file_type}'\)%\tlist\t${option}\t'${LISTS_DIR}/${file_name}'\n\1%" "${PRIVOXY_CONF}" > "${TMPDIR}/config"
         else
-            sed "s/^\(#*\s*${option} user\.${file_type}\)/${option} ${file_name}\n\1/" "${PRIVOXY_CONF}" > "${TMPDIR}/config"
+            sed "s%^\(#*\s*${option} user\.${file_type}\)%${option} ${LISTS_DIR}/${file_name}\n\1%" "${PRIVOXY_CONF}" > "${TMPDIR}/config"
         fi
         debug 0 "... modification done."
         debug 0 "Installing new config ..."
@@ -337,7 +339,11 @@ function prepare() {
     fi
 
     # set privoxy config dir
-    PRIVOXY_DIR="$(dirname "${PRIVOXY_CONF}")"
+    LISTS_DIR="${LISTS_DIR:-"$(dirname "${PRIVOXY_CONF}")"}"
+    if ! [ -d "${LISTS_DIR}" ]; then
+        mkdir -p "${LISTS_DIR}"
+        chown "${PRIVOXY_USER}:${PRIVOXY_GROUP}" "${LISTS_DIR}"
+    fi
 
     if [ -z "${URLS[*]:-}" ]; then
         error "no URLs given. Either provide -u or set environment variable URLS."
@@ -345,6 +351,10 @@ function prepare() {
     fi
     if [ -z "${TMPDIR:-}" ]; then
         error "no TMPDIR given. Either provide -t or set environment variable TMPDIR."
+        exit 3
+    fi
+    if [ -z "${PRIVOXY_CONF:-}" ]; then
+        error "no PRIVOXY_CONF given. Either provide -p or set environment variable PRIVOXY_CONF."
         exit 3
     fi
 }
@@ -876,13 +886,13 @@ function remove() {
     if [ "${choice}" != "y" ]; then
         exit 0
     fi
-    if rm -rf "${PRIVOXY_DIR}/"*.script.{action,filter} \
+    if rm -rf "${LISTS_DIR}/"*.script.{action,filter} \
         && sed '/^\(\s\s*list\s\s*\)\?actionsfile\s\s*.*\.script\.action.\?$/d;/^\(\s\s*list\s\s*\)\?filterfile\s\s*.*\.script\.filter.\?$/d' -i "${PRIVOXY_CONF}"; then
         echo "Lists removed."
         exit 0
     fi
     error "An error occured while removing the lists."
-    error "Please have a look into ${PRIVOXY_DIR} whether there are .script.* files and search for *.script.* in ${PRIVOXY_CONF}."
+    error "Please have a look into ${LISTS_DIR} whether there are .script.* files and search for *.script.* in ${PRIVOXY_CONF}."
     exit 1
 }
 
@@ -911,7 +921,7 @@ case "${ID_LIKE}" in
 esac
 
 # loop for options
-while getopts ":c:Cf:hqrt:u:Uv:V" opt; do
+while getopts ":c:Cd:f:hp:qrt:u:Uv:V" opt; do
     case "${opt}" in
         "c")
             SCRIPTCONF="${OPTARG}"
@@ -919,8 +929,14 @@ while getopts ":c:Cf:hqrt:u:Uv:V" opt; do
         "C")
             NO_CONFIG=1
             ;;
+        "d")
+            LISTS_DIR="${OPTARG}"
+            ;;
         "f")
             OPT_FILTERS+=("${OPTARG,,}")
+            ;;
+        "p")
+            PRIVOXY_CONF="${OPTARG}"
             ;;
         "q")
             OPT_DBG=-1
@@ -966,9 +982,8 @@ while getopts ":c:Cf:hqrt:u:Uv:V" opt; do
             ;;
     esac
 done
-#PRIVOXY_USER="privoxy"
-#PRIVOXY_GROUP="root"
-#PRIVOXY_CONF="/etc/privoxy/config"
+#PRIVOXY_USER
+#PRIVOXY_GROUP
 
 if [ -n "${OPT_FILTERS[*]:-"${FILTERS[*]}"}" ]; then
     if unknown="$(grep -vxFf <(printf '%s\n' "${FILTERTYPES[@]}") <(printf '%s\n' "${OPT_FILTERS[@]:-"${FILTERS[@]}"}"))"; then
@@ -983,7 +998,7 @@ trap 'rm -fr "${TMPDIR}";exit' INT TERM EXIT
 
 lock
 debug 2 "URL-List: ${URLS[*]}"
-debug 2 "Privoxy-Configdir: ${PRIVOXY_DIR}"
+debug 2 "Target directory for lists: ${LISTS_DIR}"
 debug 2 "Temporary directory: ${TMPDIR}"
 "${method}"
 
