@@ -7,6 +7,7 @@ ENV		DEBIAN_FRONTEND=noninteractive
 ENV		HTTPS_SUPPORT=true
 RUN		apt-get update \
 		&& apt-get install --no-install-recommends -q --yes \
+			apparmor \
 			curl \
 			build-essential \
 			python3-pip \

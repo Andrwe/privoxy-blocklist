@@ -3,7 +3,8 @@
 import os
 from pathlib import Path
 from re import search
-from shutil import chown, copyfile
+from shutil import copyfile, which
+from subprocess import run
 from tempfile import mkdtemp
 from typing import Generator, Optional
 
@@ -44,7 +45,17 @@ def debug_enabled() -> bool:
     )
 
 
-def is_openwrt():
+def is_apparmor() -> bool:
+    """Check if current OS has apparmor enabled."""
+    aa_exec = which("aa-status")
+    if not aa_exec:
+        return False
+    if run(aa_exec or "/usr/sbin/aa-status", check=False, capture_output=True).returncode != 0:
+        return False
+    return True
+
+
+def is_openwrt() -> bool:
     """Check if current OS is OpenWRT based."""
     os_release_file = Path("/etc/os-release")
     if not os_release_file.exists():
@@ -97,15 +108,33 @@ def _get_privoxy_args(shell: Subprocess, config_path: str = "") -> list[str]:
     """Return arguments for running Privoxy."""
     privoxy_args = ["--no-daemon", "--user", "privoxy"]
     if config_path:
-        config_obj = Path(config_path)
-        config_dir_obj = config_obj.parent
-        # permission change required for Ubuntu based tests
-        chown(config_dir_obj, user="privoxy")
-        config_dir_obj.chmod(0o755)
-        for file in config_dir_obj.iterdir():
-            chown(file, user="privoxy")
-            file.chmod(0o644)
         privoxy_args.append(config_path)
+        if is_apparmor():
+            config_dir = str(Path(config_path).parent)
+            data = Path("/etc/apparmor.d/usr.sbin.privoxy").read_text(encoding="UTF-8")
+            if config_dir not in data:
+                data = f"""
+                    include if exists <tunables>
+                    /usr/sbin/privoxy {"{"}
+                      #include <abstractions/base>
+                      #include <abstractions/nameservice>
+                      capability setgid,
+                      capability setuid,
+                      /usr/sbin/privoxy mr,
+                      /etc/privoxy/** r,
+                      {config_dir}/** r,
+                      owner /etc/privoxy/match-all.action rw,
+                      owner /etc/privoxy/user.action rw,
+                      /run/privoxy*.pid rw,
+                      /usr/share/doc/privoxy/user-manual/** r,
+                      /usr/share/doc/privoxy/p_doc.css r,
+                      owner /var/lib/privoxy/** rw,
+                      owner /var/log/privoxy/logfile rw,
+                    {"}"}
+                    """
+                Path("/etc/apparmor.d/usr.sbin.privoxy").write_text(data, encoding="UTF-8")
+                apparmor = shell.run("apparmor_parser", "-r", "/etc/apparmor.d/usr.sbin.privoxy")
+                assert apparmor.returncode == 0
     else:
         privoxy_args.append(_get_privoxy_config(shell))
     return privoxy_args
@@ -117,15 +146,7 @@ def check_privoxy_config(config_path: str = "") -> None:
     shell = Subprocess()
     command = ["/usr/sbin/privoxy", "--config-test"]
     command.extend(_get_privoxy_args(shell, config_path))
-    if config_path:
-        assert Path(config_path).owner() == "privoxy"
-        assert Path(config_path).parent.owner() == "privoxy"
-        assert oct(Path(config_path).stat().st_mode).endswith("644")
-        assert oct(Path(config_path).parent.stat().st_mode).endswith("755")
-        print(shell.run("ls", "-l", str(Path(config_path).parent)))
     ret_privo = shell.run(*command)
-    print(os.getuid())
-    print(shell.run("id"))
     assert ret_privo.returncode == 0
     assert check_not_in(" Error: ", ret_privo.stdout + ret_privo.stderr)
     assert check_not_in(" error: ", ret_privo.stdout + ret_privo.stderr)
