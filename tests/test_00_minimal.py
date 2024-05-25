@@ -55,5 +55,4 @@ def test_privoxy_setup() -> None:
         if path.suffix != ".new":
             continue
         assert Path(str(path).replace(".new", "")).exists()
-    ret = check_privoxy_config()
-    assert ret.returncode == 0
+    check_privoxy_config()

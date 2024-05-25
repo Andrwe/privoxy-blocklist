@@ -3,12 +3,14 @@
 import os
 from pathlib import Path
 from re import search
+from shutil import copyfile, which
+from subprocess import run
 from tempfile import mkdtemp
 from typing import Generator, Optional
 
 import pytest
 import requests
-from pytestshellutils.shell import Daemon, ProcessResult, Subprocess
+from pytestshellutils.shell import Daemon, Subprocess
 from urllib3.util import Url, parse_url
 
 phase_report_key = pytest.StashKey[int]()
@@ -43,7 +45,17 @@ def debug_enabled() -> bool:
     )
 
 
-def is_openwrt():
+def is_apparmor() -> bool:
+    """Check if current OS has apparmor enabled."""
+    aa_exec = which("aa-status")
+    if not aa_exec:
+        return False
+    if run(aa_exec or "/usr/sbin/aa-status", check=False, capture_output=True).returncode != 0:
+        return False
+    return True
+
+
+def is_openwrt() -> bool:
     """Check if current OS is OpenWRT based."""
     os_release_file = Path("/etc/os-release")
     if not os_release_file.exists():
@@ -64,14 +76,21 @@ def check_not_in(needle: str, haystack: str) -> bool:
     return needle not in haystack
 
 
-def run_generate_config(shell: Subprocess) -> None:
+def run_generate_config(shell: Subprocess, config_path: str = "") -> None:
     """Generate Privoxy config on OpenWRT."""
     script_path = f"{mkdtemp()}/generate_config.sh"
     Path(script_path).write_text(
         "source $IPKG_INSTROOT/lib/functions.sh; source /etc/rc.d/K10privoxy; _uci2conf",
         encoding="UTF-8",
     )
+    if config_path:
+        orig_path = "/etc/config/privoxy"
+        copyfile(orig_path, f"{orig_path}_bak")
+        copyfile(config_path, orig_path)
     generate_run = shell.run("/bin/ash", script_path)
+    if config_path:
+        copyfile(f"{orig_path}_bak", orig_path)
+        Path(f"{orig_path}_bak").unlink(missing_ok=True)
     assert generate_run.returncode == 0
 
 
@@ -85,21 +104,52 @@ def _get_privoxy_config(shell: Subprocess) -> str:
     return config_path
 
 
-def _get_privoxy_args(shell: Subprocess) -> list[str]:
+def _get_privoxy_args(shell: Subprocess, config_path: str = "") -> list[str]:
     """Return arguments for running Privoxy."""
     privoxy_args = ["--no-daemon", "--user", "privoxy"]
-    privoxy_args.append(_get_privoxy_config(shell))
+    if config_path:
+        privoxy_args.append(config_path)
+        if is_apparmor():
+            config_dir = str(Path(config_path).parent)
+            data = Path("/etc/apparmor.d/usr.sbin.privoxy").read_text(encoding="UTF-8")
+            if config_dir not in data:
+                data = f"""
+                    include if exists <tunables>
+                    /usr/sbin/privoxy {"{"}
+                      #include <abstractions/base>
+                      #include <abstractions/nameservice>
+                      capability setgid,
+                      capability setuid,
+                      /usr/sbin/privoxy mr,
+                      /etc/privoxy/** r,
+                      {config_dir}/** r,
+                      owner /etc/privoxy/match-all.action rw,
+                      owner /etc/privoxy/user.action rw,
+                      /run/privoxy*.pid rw,
+                      /usr/share/doc/privoxy/user-manual/** r,
+                      /usr/share/doc/privoxy/p_doc.css r,
+                      owner /var/lib/privoxy/** rw,
+                      owner /var/log/privoxy/logfile rw,
+                    {"}"}
+                    """
+                Path("/etc/apparmor.d/usr.sbin.privoxy").write_text(data, encoding="UTF-8")
+                apparmor = shell.run("apparmor_parser", "-r", "/etc/apparmor.d/usr.sbin.privoxy")
+                assert apparmor.returncode == 0
+    else:
+        privoxy_args.append(_get_privoxy_config(shell))
     return privoxy_args
 
 
-def check_privoxy_config() -> ProcessResult:
+def check_privoxy_config(config_path: str = "") -> None:
     """Test start of privoxy."""
     # not using shell-fixture to simplify call of this function
     shell = Subprocess()
     command = ["/usr/sbin/privoxy", "--config-test"]
-    command.extend(_get_privoxy_args(shell))
-    # privoxy must run as privoxy to suit apparmor-config on ubuntu
-    return shell.run(*command)
+    command.extend(_get_privoxy_args(shell, config_path))
+    ret_privo = shell.run(*command)
+    assert ret_privo.returncode == 0
+    assert check_not_in(" Error: ", ret_privo.stdout + ret_privo.stderr)
+    assert check_not_in(" error: ", ret_privo.stdout + ret_privo.stderr)
 
 
 # based on
