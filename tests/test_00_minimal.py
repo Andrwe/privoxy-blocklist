@@ -32,6 +32,8 @@ def test_permissions() -> None:
         "tests/ruff.toml",
         "tests/test_00_minimal.py",
         "tests/test_01_root_execute.py",
+        "tests/test_02_non_root_execute.py",
+        "tests/test_99_helper.py",
     ]
     for filepath in executables:
         path = git_root / filepath

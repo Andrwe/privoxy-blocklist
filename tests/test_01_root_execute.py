@@ -1,7 +1,7 @@
 """Test execution as root."""
 
 from pathlib import Path
-from shutil import copyfile, copymode, which
+from shutil import copyfile, copymode
 from subprocess import run
 from tempfile import mkdtemp
 
@@ -260,6 +260,7 @@ def test_env_based_config(shell: Subprocess, privoxy_blocklist: str, privoxy_con
     assert check_in("URLs: https://easylist-downloads.adblockplus.org/easylist.txt", process.stdout)
     assert check_in("TMPDIR: /temp/blub", process.stdout)
     assert check_in("Content filters: class_global", process.stdout)
+    assert check_in("Running in Activate Mode", process.stdout)
     assert check_in(
         "easylist.script.action",
         Path(privoxy_config_test).read_text(encoding="UTF-8"),
@@ -290,6 +291,7 @@ def test_env_based_config(shell: Subprocess, privoxy_blocklist: str, privoxy_con
     assert check_in("URLs: https://easylist-downloads.adblockplus.org/easylist.txt", process.stdout)
     assert check_in("TMPDIR: /temp/blub2", process.stdout)
     assert check_in("Content filters: class_global", process.stdout)
+    assert check_in("Running in Activate Mode", process.stdout)
     assert check_in(f"Target directory for lists: {lists_dir}", process.stdout)
     assert Path(lists_dir).is_dir()
     assert Path(f"{lists_dir}/easylist.script.action").exists()
@@ -334,6 +336,7 @@ def test_argument_based_config(
     assert check_in("URLs: https://easylist.to/easylist/easyprivacy.txt", process.stdout)
     assert check_in("TMPDIR: /temp/blub3", process.stdout)
     assert check_in("Content filters: class_global", process.stdout)
+    assert check_in("Running in Activate Mode", process.stdout)
     assert check_in(f"Target directory for lists: {lists_dir}", process.stdout)
     assert Path(lists_dir).is_dir()
     assert Path(f"{lists_dir}/easyprivacy.script.action").exists()
@@ -353,6 +356,54 @@ def test_argument_based_config(
         check_privoxy_config(privoxy_config_test)
 
 
+def test_convert_mode(shell: Subprocess, privoxy_blocklist: str, privoxy_config: str) -> None:
+    """Test update of privoxy-blocklist configuration file."""
+    privoxy_config_dir = mkdtemp()
+    privoxy_config_test = f"{privoxy_config_dir}/test_config"
+    lists_dir = f"{privoxy_config_dir}/lists"
+    if is_openwrt():
+        copyfile("/etc/config/privoxy", privoxy_config_test)
+    else:
+        copyfile(privoxy_config, privoxy_config_test)
+    process = shell.run(
+        privoxy_blocklist,
+        "-A",
+        "-C",
+        "-p",
+        privoxy_config_test,
+        "-d",
+        lists_dir,
+        "-v",
+        "2",
+        "-f",
+        "class_global",
+        "-t",
+        "/temp/blub4",
+        "-u",
+        "https://easylist.to/easylist/easyprivacy.txt",
+    )
+    assert process.returncode == int(0)
+    assert check_in("URLs: https://easylist.to/easylist/easyprivacy.txt", process.stdout)
+    assert check_in("TMPDIR: /temp/blub4", process.stdout)
+    assert check_in("Content filters: class_global", process.stdout)
+    assert check_in("Running in Convert Mode", process.stdout)
+    assert check_in(f"Target directory for lists: {lists_dir}", process.stdout)
+    assert check_in("Skip activation of '", process.stdout)
+    assert Path(lists_dir).is_dir()
+    assert Path(f"{lists_dir}/easyprivacy.script.action").exists()
+    assert Path(f"{lists_dir}/easyprivacy.script.action").is_file()
+    assert check_not_in(
+        f"{lists_dir}/easyprivacy.script.action",
+        Path(privoxy_config_test).read_text(encoding="UTF-8"),
+    )
+    if is_openwrt():
+        run_generate_config(shell, privoxy_config_test)
+        assert check_not_in(
+            f"{lists_dir}/easyprivacy.script.action",
+            Path(privoxy_config).read_text(encoding="UTF-8"),
+        )
+
+
 # must be second last test as it will generate unpredictable privoxy configurations
 def test_predefined_custom_config_generator(
     shell: Subprocess,
@@ -369,40 +420,6 @@ def test_predefined_custom_config_generator(
         for check in config.config_checks.get(config_file.name, []):
             assert check[0](check[1], ret.stdout)
         assert config_file.exists()
-
-
-# must be last test as it will uninstall dependencies and check error handling
-def test_missing_deps(shell: Subprocess, privoxy_blocklist: str) -> None:
-    """Test error when dependency is missing."""
-    if which("apk"):
-        ret_pkg = shell.run("apk", "del", "privoxy")
-    elif which("apt-get"):
-        ret_pkg = shell.run(
-            "apt-get",
-            "remove",
-            "--yes",
-            "privoxy",
-            env=EnvironDict({"DEBIAN_FRONTEND": "noninteractive"}),
-        )
-    elif which("opkg"):
-        lock_path = Path("/var/lock")
-        if not lock_path.exists():
-            lock_path.mkdir()
-        ret_pkg = shell.run(
-            "opkg",
-            "remove",
-            "--force-remove",
-            "--autoremove",
-            "privoxy",
-        )
-    assert ret_pkg.returncode == 0
-    ret_script = shell.run(privoxy_blocklist)
-    assert ret_script.returncode == 1
-    assert "Please install the package providing" in ret_script.stderr
-
-
-def test_privoxy_runtime_log() -> None:
-    """NOOP function to support checking privoxy logs during tear-down."""
 
 
 # Heloer functions

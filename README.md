@@ -19,6 +19,21 @@ Due to this behaviour the script must run as root user to be able to modify the 
 
 Either run `privoxy-blocklist.sh` manually with root privileges (e.g., `sudo privoxy-blocklist.sh`) or via root cronjob.
 
+### Convert Mode
+
+By default `privoxy-blocklist.sh` converts given lists into Privoxy format and registers them afterwards in Privoxy configuration file to be loaded.
+The *Convert Mode* converts the lists, stores them into given path and exists. Thus it does **not** register the lists in Privoxy configuration.
+
+Running in *Convert Mode* requires options `-A`.
+
+Example:
+
+```bash
+> privoxy-blocklist.sh -A
+
+Skip activation of 'easylist.script.action' due to 'Convert Mode'.
+```
+
 ### Content Filter
 
 By default `privoxy-blocklist` only generates URL based filter rules as content filtering may slowdown proxying a lot.
