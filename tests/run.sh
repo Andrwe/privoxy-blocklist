@@ -61,7 +61,7 @@ for os in ${oses}; do
         if docker volume ls --format '{{ .Name }}' | grep -q "${pytest_cache}"; then
             docker volume rm "${pytest_cache}" > /dev/null || true
         fi
-        docker build -q -t "${img_tag}" -f "${dockerfile}" .
+        docker build -t "${img_tag}" -f "${dockerfile}" .
         cd -
         echo
     fi
