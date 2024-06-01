@@ -1,11 +1,21 @@
 #!/bin/sh
 
 set -e
+
+SCRIPTDIR="$(dirname "$(readlink -f "$0")")"
+
 exists() {
     if command -v "$1" > /dev/null 2>&1; then
         return 0
     fi
     return 1
+}
+
+pip_install() {
+    python3 -m venv /.venv
+    # shellcheck disable=SC1091
+    . /.venv/bin/activate
+    pip install --no-cache-dir -r "${SCRIPTDIR}/../tests/requirements.txt"
 }
 
 if exists apk; then
@@ -15,6 +25,21 @@ if exists apk; then
         privoxy \
         sed \
         wget
+
+    # prepare system in Github Pipeline
+    if [ -n "$CI" ]; then
+        apk add --no-cache --quiet \
+            build-base \
+            linux-headers \
+            py3-pip \
+            python3-dev
+        pip_install
+        # prepare configuration files
+        for f in /etc/privoxy/*.new; do
+            cp -p "$f" "${f%.*}"
+        done
+        adduser -h /home/ci_test_user -s /bin/bash -D ci_test_user
+    fi
     if ! grep -q '^debug' /etc/privoxy/config; then
         cat >> /etc/privoxy/config << EOF
 # activate debugging of rules & access log
@@ -26,12 +51,26 @@ fi
 if exists apt-get; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq -y
-    apt-get install -y \
+    apt-get install --no-install-recommends -y \
         bash \
         grep \
         privoxy \
         sed \
         wget
+
+    # prepare system in Github Pipeline
+    if [ -n "$CI" ]; then
+        apt-get install --no-install-recommends --yes \
+            apparmor \
+            curl \
+            build-essential \
+            python3-dev \
+            python3-pip \
+            python3-venv
+        pip_install
+        systemctl disable --now privoxy || true
+        useradd -s /bin/bash ci_test_user
+    fi
     if [ -n "${HTTPS_SUPPORT:-}" ]; then
         # prepare HTTPS inspection
         mkdir -p /etc/privoxy/CA/certs /usr/local/share/ca-certificates/privoxy
@@ -68,7 +107,12 @@ EOF
     exit 0
 fi
 if exists pacman; then
-    pacman -Sy privoxy sed grep bash wget
+    pacman -Sy \
+        bash \
+        grep \
+        privoxy \
+        sed \
+        wget
     if ! grep -q '^debug' /etc/privoxy/config; then
         cat >> /etc/privoxy/config << EOF
 # activate debugging of rules & access log
@@ -92,6 +136,23 @@ if exists opkg; then
         sed \
         wget-ssl
 
+    # prepare system in Github Pipeline
+    if [ -n "$CI" ]; then
+        opkg install \
+            curl \
+            gcc \
+            make \
+            python3 \
+            python3-pip \
+            python3-dev \
+            python3-venv \
+            shadow-useradd
+        pip_install
+        /etc/rc.d/K10privoxy stop || true
+        echo "        list    listen_address  '127.0.0.1:8118'" >> /etc/config/privoxy
+        echo "        list    permit_access           '127.0.0.0/24'" >> /etc/config/privoxy
+        useradd -s /bin/bash ci_test_user
+    fi
     # openwrt version not compiled with HTTPS support, thus just keeping for future reference
     if [ -n "${HTTPS_SUPPORT:-}" ]; then
         # prepare HTTPS inspection

@@ -1,28 +1,20 @@
 FROM		ubuntu:latest
-COPY		tests/requirements.txt /requirements.txt
-COPY		helper/install_deps.sh /install_deps.sh
+COPY		tests/requirements.txt /tests/requirements.txt
+COPY		helper/install_deps.sh /helper/install_deps.sh
 RUN		install -d -o root -g root /pytest_cache
-# hadolint ignore=DL3018
+RUN		useradd -U -G sudo test_run
 ENV		DEBIAN_FRONTEND=noninteractive
 ENV		HTTPS_SUPPORT=true
-RUN		apt-get update \
-		&& apt-get install --no-install-recommends -q --yes \
-			apparmor \
-			curl \
-			build-essential \
-			python3-pip \
-			python3-dev \
+ENV		CI=true
+RUN		/helper/install_deps.sh \
+		&& rm -rf /helper/
+RUN		apt-get install --no-install-recommends -q --yes \
 			sudo \
 			vim \
 		&& echo "%sudo ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers.d/nopw \
 		&& apt-get clean \
 		&& apt-get -y autoremove \
 		&& rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-RUN		useradd -U -G sudo test_run
-RUN		pip install --no-cache-dir -r /requirements.txt --break-system-packages \
-		&& rm -f /requirements.txt
-RUN		/install_deps.sh \
-		&& rm -f /install_deps.sh
 WORKDIR		/app
 USER		test_run
-ENTRYPOINT	["sudo", "pytest", "-v", "-s", "-o", "cache_dir=/pytest_cache", "--color", "yes"]
+ENTRYPOINT	["sudo", "/.venv/bin/pytest", "-v", "-s", "-o", "cache_dir=/pytest_cache", "--color", "yes"]

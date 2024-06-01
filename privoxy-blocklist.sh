@@ -67,6 +67,8 @@ function usage() {
     echo " "
     echo "Options:"
     echo "      -h:         Show this help."
+    echo "      -a:         Run in 'Activate Mode', which registers converted lists in Privoxy configuration file. (default mode) [env: ACTIVATE=1]"
+    echo "      -A:         Run in 'Convert Mode', which does *not* register converted lists in Privoxy configuration file. [env: ACTIVATE=0]"
     echo "      -c path:    Path to script configuration file. (default = ${SCRIPTCONF} - OS specific) [env: SCRIPTCONF='']"
     echo "      -C:         Don't write configuration file [env: NO_CONFIG=1]"
     echo "      -d path:    Path to store generated list files (*.action & *.filter) in. (default = directory of privoxy-config - OS specific) [env: LISTS_DIR='']"
@@ -100,6 +102,10 @@ function activate_config() {
             ;;
     esac
     copy "${file_path}" "${LISTS_DIR}"
+    if [ "${ACTIVATE}" -eq 0 ]; then
+        info "Skip activation of '${file_name}' due to 'Convert Mode'."
+        return 0
+    fi
     if ! grep -q "${LISTS_DIR}/${file_name}" "${PRIVOXY_CONF}"; then
         debug 0 "Modifying ${PRIVOXY_CONF} ..."
         # ensure generated config is above user.* to allow overriding
@@ -126,8 +132,12 @@ function copy() {
         full_target_path="${target_path}/$(basename "${source_path}")"
     fi
     cp "${VERBOSE[@]}" "${source_path}" "${target_path}"
-    chown "${PRIVOXY_USER}:${PRIVOXY_GROUP}" "${full_target_path}"
-    chmod a+x "${full_target_path}"
+    if [ "${ACTIVATE}" -eq 1 ]; then
+        chown "${PRIVOXY_USER}:${PRIVOXY_GROUP}" "${full_target_path}"
+    fi
+    if [ -d "${full_target_path}" ]; then
+        chmod a+x "${full_target_path}"
+    fi
 }
 
 function get_config_path() {
@@ -237,7 +247,7 @@ EOF
 }
 
 function prepare() {
-    if [ ${UID} -ne 0 ]; then
+    if [ "${ACTIVATE}" -eq 1 ] && [ ${UID} -ne 0 ]; then
         error "Root privileges needed. Exit."
         usage
         exit 1
@@ -342,7 +352,9 @@ function prepare() {
     LISTS_DIR="${LISTS_DIR:-"$(dirname "${PRIVOXY_CONF}")"}"
     if ! [ -d "${LISTS_DIR}" ]; then
         mkdir -p "${LISTS_DIR}"
-        chown "${PRIVOXY_USER}:${PRIVOXY_GROUP}" "${LISTS_DIR}"
+        if [ "${ACTIVATE}" -eq 1 ]; then
+            chown "${PRIVOXY_USER}:${PRIVOXY_GROUP}" "${LISTS_DIR}"
+        fi
     fi
 
     if [ -z "${URLS[*]:-}" ]; then
@@ -899,6 +911,7 @@ function remove() {
 VERBOSE=()
 method="main"
 OS="$(uname)"
+ACTIVATE="${ACTIVATE:-1}"
 NO_CONFIG="${NO_CONFIG:-0}"
 OPT_TMPDIR=""
 OPT_UPDATE_CONFIG=0
@@ -921,8 +934,14 @@ case "${ID_LIKE}" in
 esac
 
 # loop for options
-while getopts ":c:Cd:f:hp:qrt:u:Uv:V" opt; do
+while getopts ":aAc:Cd:f:hp:qrt:u:Uv:V" opt; do
     case "${opt}" in
+        "a")
+            ACTIVATE=1
+            ;;
+        "A")
+            ACTIVATE=0
+            ;;
         "c")
             SCRIPTCONF="${OPTARG}"
             ;;
@@ -1000,6 +1019,11 @@ lock
 debug 2 "URL-List: ${URLS[*]}"
 debug 2 "Target directory for lists: ${LISTS_DIR}"
 debug 2 "Temporary directory: ${TMPDIR}"
+if [ "${ACTIVATE}" -eq 0 ]; then
+    debug 2 "Running in Convert Mode"
+else
+    debug 2 "Running in Activate Mode"
+fi
 "${method}"
 
 # restore default exit command
