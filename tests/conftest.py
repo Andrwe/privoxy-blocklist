@@ -50,9 +50,7 @@ def is_apparmor() -> bool:
     aa_exec = which("aa-status")
     if not aa_exec:
         return False
-    if run(aa_exec or "/usr/sbin/aa-status", check=False, capture_output=True).returncode != 0:
-        return False
-    return True
+    return run(aa_exec or "/usr/sbin/aa-status", check=False, capture_output=True).returncode == 0
 
 
 def is_openwrt() -> bool:
@@ -61,9 +59,7 @@ def is_openwrt() -> bool:
     if not os_release_file.exists():
         return False
     os_release_content = os_release_file.read_text(encoding="UTF-8")
-    if search(r'ID_LIKE=".*(?<="|\s)openwrt(?="|\s).*"', os_release_content):
-        return True
-    return False
+    return search(r'ID_LIKE=".*(?<="|\s)openwrt(?="|\s).*"', os_release_content) is not None
 
 
 def check_in(needle: str, haystack: str) -> bool:
@@ -261,6 +257,9 @@ def start_privoxy(
     )
     run.start()
     yield run.is_running()
+    # empty ports list as psutil.process_iter() does not support "connections" anymore
+    run.listen_ports = []
+    run.check_ports = []
     run_result = run.terminate()
     logs = run_result.stdout + run_result.stderr
     # request.node is an "module" because we use the "module" scope
@@ -287,9 +286,7 @@ def check_https_inspection(start_privoxy) -> Optional[bool]:
         r"<code>FEATURE_HTTPS_INSPECTION</code>.*\n\s*<td>\s*No\s*</",
         resp.text,
     )
-    if check_support:
-        return False
-    return True
+    return not check_support
 
 
 @pytest.fixture(scope="module")
