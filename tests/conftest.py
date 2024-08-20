@@ -179,7 +179,7 @@ def get_privoxy_args(shell: Subprocess) -> list[str]:
     return _get_privoxy_args(shell)
 
 
-@pytest.fixture()
+@pytest.fixture
 def webserver(httpserver) -> UrlParsed:
     """Start HTTP server and return parsed URL object."""
     with Path(__file__).parent.joinpath("response.html").open(
