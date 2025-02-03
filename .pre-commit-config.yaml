@@ -44,7 +44,7 @@ repos:
         types: [file]
         files: "^tests/Dockerfile_.*"
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.3
+    rev: v0.9.4
     hooks:
       - id: ruff
         additional_dependencies:
@@ -62,7 +62,7 @@ repos:
           - requests
           - types-requests
   - repo: https://github.com/sirosen/check-jsonschema
-    rev: 0.31.0
+    rev: 0.31.1
     hooks:
       - id: check-github-workflows
       - id: check-github-actions
