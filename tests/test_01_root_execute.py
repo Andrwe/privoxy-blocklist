@@ -10,7 +10,17 @@ from pytestshellutils.customtypes import EnvironDict
 from pytestshellutils.shell import Subprocess
 
 import config
-from conftest import check_in, check_not_in, check_privoxy_config, is_openwrt, run_generate_config
+from conftest import (
+    EXIT_CREATE_DEFAULT,
+    EXIT_MISSING_ARGUMENT,
+    EXIT_SUCCESS,
+    EXIT_WRONG_URL,
+    check_in,
+    check_not_in,
+    check_privoxy_config,
+    is_openwrt,
+    run_generate_config,
+)
 
 
 def test_config_generator(
@@ -23,7 +33,7 @@ def test_config_generator(
     if config_file.exists():
         config_file.unlink()
     ret = shell.run(privoxy_blocklist)
-    assert ret.returncode == int(2)
+    assert ret.returncode == EXIT_CREATE_DEFAULT
     assert "Creating default one and exiting" in ret.stdout
     assert config_file.exists()
 
@@ -38,7 +48,7 @@ def test_custom_config_generator(
     if config_file.exists():
         config_file.unlink()
     ret = shell.run(privoxy_blocklist, "-c", str(config_file))
-    assert ret.returncode == int(2)
+    assert ret.returncode == EXIT_CREATE_DEFAULT
     assert "Creating default one and exiting" in ret.stdout
     assert config_file.exists()
 
@@ -214,7 +224,7 @@ def test_config_update(
 def test_env_based_config(shell: Subprocess, privoxy_blocklist: str, privoxy_config: str) -> None:
     """Test script run configured using environment variables only."""
     process = shell.run(privoxy_blocklist, "-C")
-    assert process.returncode == int(3)
+    assert process.returncode == EXIT_MISSING_ARGUMENT
     assert check_in(
         "no URLs given. Either provide -u or set environment variable URLS.", process.stderr
     )
@@ -224,7 +234,7 @@ def test_env_based_config(shell: Subprocess, privoxy_blocklist: str, privoxy_con
         "-C",
         env=EnvironDict({"URLS": "https://foo"}),
     )
-    assert process.returncode == int(3)
+    assert process.returncode == EXIT_MISSING_ARGUMENT
     assert check_in(
         "no TMPDIR given. Either provide -t or set environment variable TMPDIR.", process.stderr
     )
@@ -234,7 +244,7 @@ def test_env_based_config(shell: Subprocess, privoxy_blocklist: str, privoxy_con
         "-C",
         env=EnvironDict({"URLS": "https://foo", "TMPDIR": "/temp/blub", "DBG": "2"}),
     )
-    assert process.returncode == int(4)  # return-code from wget as url is wrong
+    assert process.returncode == EXIT_WRONG_URL
     assert check_in("URLs: https://foo", process.stdout)
     assert check_in("TMPDIR: /temp/blub", process.stdout)
 
@@ -256,7 +266,7 @@ def test_env_based_config(shell: Subprocess, privoxy_blocklist: str, privoxy_con
             }
         ),
     )
-    assert process.returncode == int(0)
+    assert process.returncode == EXIT_SUCCESS
     assert check_in("URLs: https://easylist-downloads.adblockplus.org/easylist.txt", process.stdout)
     assert check_in("TMPDIR: /temp/blub", process.stdout)
     assert check_in("Content filters: class_global", process.stdout)
@@ -287,7 +297,7 @@ def test_env_based_config(shell: Subprocess, privoxy_blocklist: str, privoxy_con
             }
         ),
     )
-    assert process.returncode == int(0)
+    assert process.returncode == EXIT_SUCCESS
     assert check_in("URLs: https://easylist-downloads.adblockplus.org/easylist.txt", process.stdout)
     assert check_in("TMPDIR: /temp/blub2", process.stdout)
     assert check_in("Content filters: class_global", process.stdout)
@@ -332,7 +342,7 @@ def test_argument_based_config(
         "-u",
         "https://easylist.to/easylist/easyprivacy.txt",
     )
-    assert process.returncode == int(0)
+    assert process.returncode == EXIT_SUCCESS
     assert check_in("URLs: https://easylist.to/easylist/easyprivacy.txt", process.stdout)
     assert check_in("TMPDIR: /temp/blub3", process.stdout)
     assert check_in("Content filters: class_global", process.stdout)
@@ -382,7 +392,7 @@ def test_convert_mode(shell: Subprocess, privoxy_blocklist: str, privoxy_config:
         "-u",
         "https://easylist.to/easylist/easyprivacy.txt",
     )
-    assert process.returncode == int(0)
+    assert process.returncode == EXIT_SUCCESS
     assert check_in("URLs: https://easylist.to/easylist/easyprivacy.txt", process.stdout)
     assert check_in("TMPDIR: /temp/blub4", process.stdout)
     assert check_in("Content filters: class_global", process.stdout)
