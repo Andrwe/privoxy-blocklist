@@ -7,7 +7,7 @@ from tempfile import mkdtemp
 
 from pytestshellutils.shell import Subprocess
 
-from conftest import check_in, check_not_in, is_openwrt, run_generate_config
+from conftest import EXIT_SUCCESS, check_in, check_not_in, is_openwrt, run_generate_config
 
 
 def test_convert_mode(shell: Subprocess, privoxy_blocklist: str, privoxy_config: str) -> None:
@@ -49,7 +49,7 @@ def test_convert_mode(shell: Subprocess, privoxy_blocklist: str, privoxy_config:
         check=False,
     )
     stdout = process.stdout.decode("UTF-8")
-    assert process.returncode == int(0)
+    assert process.returncode == EXIT_SUCCESS
     assert check_in("URLs: https://easylist.to/easylist/easyprivacy.txt", stdout)
     assert check_in(f"TMPDIR: {converted_dir}", stdout)
     assert check_in("Content filters: class_global", stdout)

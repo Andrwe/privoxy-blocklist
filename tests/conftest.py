@@ -13,6 +13,11 @@ import requests
 from pytestshellutils.shell import Daemon, Subprocess
 from urllib3.util import Url, parse_url
 
+EXIT_SUCCESS = 0
+EXIT_CREATE_DEFAULT = 2
+EXIT_MISSING_ARGUMENT = 3
+EXIT_WRONG_URL = 4  # return-code from wget as url is wrong
+
 phase_report_key = pytest.StashKey[int]()
 
 
@@ -182,10 +187,14 @@ def get_privoxy_args(shell: Subprocess) -> list[str]:
 @pytest.fixture
 def webserver(httpserver) -> UrlParsed:
     """Start HTTP server and return parsed URL object."""
-    with Path(__file__).parent.joinpath("response.html").open(
-        "r",
-        encoding="UTF-8",
-    ) as f_h:
+    with (
+        Path(__file__)
+        .parent.joinpath("response.html")
+        .open(
+            "r",
+            encoding="UTF-8",
+        ) as f_h
+    ):
         response_html = f_h.read()
     httpserver.expect_request("/").respond_with_data(
         response_data=response_html,
@@ -198,10 +207,14 @@ def webserver(httpserver) -> UrlParsed:
 def filtertypes() -> list[str]:
     """Return filtertypes supported by privoxy-blocklist."""
     filter_types = []
-    with Path(__file__).parent.parent.joinpath("privoxy-blocklist.sh").open(
-        "r",
-        encoding="UTF-8",
-    ) as f_h:
+    with (
+        Path(__file__)
+        .parent.parent.joinpath("privoxy-blocklist.sh")
+        .open(
+            "r",
+            encoding="UTF-8",
+        ) as f_h
+    ):
         found_line = False
         for line in f_h.readlines():
             if not found_line and not line.startswith("FILTERTYPES"):

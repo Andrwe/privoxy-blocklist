@@ -29,7 +29,7 @@ urls_blocked = [
     "andrwe.org/ads/",
     "andrwe.jp/ads/",
     "pubfeed.linkby.com",
-    f"s3.{'a'*6}.amazonaws.com/{'0123abcd'*6}/{'ab,12'*2}/",
+    f"s3.{'a' * 6}.amazonaws.com/{'0123abcd' * 6}/{'ab,12' * 2}/",
 ]
 urls_blocked = ["andrwe.org/ads/", "andrwe.jp/ads/", "pubfeed.linkby.com"]
 
